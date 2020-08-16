@@ -1,0 +1,11 @@
+Package: IMRtag
+Type: Package
+Title: This package is for analyzing mackerel distribution using the tagging data
+Version: 0.1.0
+Author: Kotaro Ono
+Maintainer: kotaro.ono@hi.no
+Description: Fit various model to the tagging data to analyze movement pattern
+    Work in progress.
+License: What license is it under?
+Encoding: UTF-8
+LazyData: true

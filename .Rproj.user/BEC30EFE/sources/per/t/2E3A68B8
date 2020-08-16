@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1596631113905.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "972354608",
+    "id" : "2E3A68B8",
+    "lastKnownWriteTime" : 1597134758,
+    "last_content_update" : 1597134758491,
+    "path" : "C:/Users/a23092/Documents/Projects/Pelagic/IMRtag/R/hello.R",
+    "project_path" : "R/hello.R",
+    "properties" : {
+        "cursorPosition" : "434,22",
+        "scrollLine" : "424"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

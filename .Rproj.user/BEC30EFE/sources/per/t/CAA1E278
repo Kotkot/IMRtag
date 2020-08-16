@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1596631103217.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2027358572",
+    "id" : "CAA1E278",
+    "lastKnownWriteTime" : 1596703788,
+    "last_content_update" : 1596703788954,
+    "path" : "C:/Users/a23092/Documents/Projects/Pelagic/IMRtag/src/mackerel_mvt_model_threshold_2breaks_dp.stan",
+    "project_path" : "src/mackerel_mvt_model_threshold_2breaks_dp.stan",
+    "properties" : {
+        "cursorPosition" : "74,3",
+        "scrollLine" : "52",
+        "tempName" : "Untitled2"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "stan"
+}
