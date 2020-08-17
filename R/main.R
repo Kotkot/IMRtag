@@ -590,13 +590,51 @@
 				op <- getwd()
 				setwd(paste0(getwd(),"/src"))
 				obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
+				setwd(op)
 
 				set.seed(1)
 				rm(opt)
-				opt <- fit_tmb( obj=obj, lower=-14, upper=12, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+				opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+				sd_report_1break <- sdreport(obj1break)
+				Check_Identifiable(opt1break)
+				sigma <- as.vector(exp(summary(sd_report_1break, "fixed")[grep("log_sigma", rownames(summary(sd_report_1break, "fixed"))),1]))
+				mu_pred <- matrix(summary(sd_report_1break, "report")[,1], ncol=2, byrow=FALSE) 
 				
-				opt <- nlminb(obj=obj, lower=-14, upper=12, start=parameters_tmb) 
-				Check_Identifiable(obj)
+				# Calculating the actual prediction
+				Likelihood <- matrix(NA, nrow=data_tmb$N, ncol=data_tmb$Nthres)
+				for (n in 1:data_tmb$N){
+					for (thr in 1:data_tmb$Nthres){
+						if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+							Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,1], sigma[1])
+						}
+						if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+							Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,2], sigma[2])
+						}
+					}
+				}
+					
+				# The weighting factor is the average likelihood across the N datapoint per threshold value 
+				weight <- apply(Likelihood, 2, mean)
+				weight <- weight/sum(weight)
+				plot(data_tmb$thresh, weight)
+				
+				Prediction <- rep(0, data_tmb$N)
+				for (n in 1:data_tmb$N){
+					for (thr in 1:data_tmb$Nthres){
+						if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+							Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,1]
+						}
+						if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+							Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,2]
+						}
+					}
+				}
+				
+				plot(Prediction, data_tmb$y); abline(0,1)
+				qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
+				abline(0,1, lty=2)
+				
+						
 
 ############ Some nice plots to lok at mark recapture pattern
 

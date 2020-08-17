@@ -61,25 +61,30 @@ Type objective_function<Type>::operator() ()
     // for (int i=0;i<Nthres;i++){
 	// nll -= lp_l(Nthres + 1) + lp_e(i) - lp_l(i);
 	// }
-
-	for (int thr=0;thr<Nthres;thr++) {
+	
+  for (int thr=0;thr<(Nthres-1);thr++) {
+	for (int thr2=(thr+1);thr2<Nthres;thr2++) {
 		for (int n=0;n<N;n++){
-		if (y(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-			nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);
+			if (y(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+				nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);
+			}
+			if ((y(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)) & (y(n) < (thresh(thr2)+is_from_west(n)*mean_diff_tag_area))){
+				nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
+			}
+			if (y(n) >= (thresh(thr2)+is_from_west(n)*mean_diff_tag_area)){
+				nll -= dnorm(y(n), mu(n,2), sigma(2), TRUE);
+			}
 		}
-		if (y(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-			nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
-		}
-    }
+	}	
   }
-   
+
   // ============ Outputs =============
 
   // Model parameters
   REPORT(beta);
   REPORT(sigma);
   ADREPORT(mu);
- 
+
   //--------------------------------------------------------------------
 
   return nll;
