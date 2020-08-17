@@ -21,6 +21,8 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(X);                  		  //  the design matrix
   DATA_INTEGER(Nthres);
   DATA_VECTOR(thresh);
+  DATA_IVECTOR(thresh_start);
+  DATA_IVECTOR(thresh_end);
   DATA_SCALAR(mean_diff_tag_area);
   DATA_VECTOR(is_from_west);
   DATA_VECTOR(y);                  		  //  response
@@ -41,37 +43,37 @@ Type objective_function<Type>::operator() ()
 	mu.col(j)=X*beta.col(j);
   }
 
-  // vector<Type> lp_e(Nthres+1);
-  // vector<Type> lp_l(Nthres+1);
+  vector<Type> lp_e(Nthres+1);
+  vector<Type> lp_l(Nthres+1);
 
-    // for (int n=thresh_start(0);n<thresh_end(0);n++){	// for all observations below the first threshold
-      // lp_e(0) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
-      // lp_l(0) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
-    // }  // Now define the mean travel distance for each mixture component
+    for (int n=thresh_start(0);n<thresh_end(0);n++){	// for all observations below the first threshold
+      lp_e(0) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
+      lp_l(0) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
+    }  // Now define the mean travel distance for each mixture component
 
-    // for (int t=0;t<Nthres;t++){
-      // lp_e(t+1) = lp_e(t);
-      // lp_l(t+1) = lp_l(t);
-      // for (int n=thresh_start(t+1);n<thresh_end(t+1);n++){ 	  // for all observations between threshold [t,t+1[
-        // lp_e(t + 1) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
-        // lp_l(t + 1) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
-      // }  // Now define the mean travel distance for each mixture component
-    // }
-  
-    // for (int i=0;i<Nthres;i++){
-	// nll -= lp_l(Nthres + 1) + lp_e(i) - lp_l(i);
-	// }
-	
-  for (int thr=0;thr<Nthres;thr++) {
-    for (int n=0;n<N;n++){
-		if (y(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-			nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);
-		}
-		if (y(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-			nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
-		}
+    for (int t=0;t<Nthres;t++){
+      lp_e(t+1) = lp_e(t);
+      lp_l(t+1) = lp_l(t);
+      for (int n=thresh_start(t+1);n<thresh_end(t+1);n++){ 	  // for all observations between threshold [t,t+1[
+        lp_e(t + 1) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
+        lp_l(t + 1) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
+      }  // Now define the mean travel distance for each mixture component
     }
-  }
+  
+    for (int i=0;i<Nthres;i++){
+	nll -= lp_l(Nthres + 1) + lp_e(i) - lp_l(i);
+	}
+	
+  // for (int thr=0;thr<Nthres;thr++) {
+    // for (int n=0;n<N;n++){
+		// if (y(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+			// nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);
+		// }
+		// if (y(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+			// nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
+		// }
+    // }
+  // }
 
   // ============ Outputs =============
 

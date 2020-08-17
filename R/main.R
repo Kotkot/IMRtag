@@ -1,15 +1,15 @@
 #########################################################################
 ###
-### Content:  
+### Content:
 ### This is the main file to perform some analyses of the mackerel tagging data
-###	
-### Author: 
+###
+### Author:
 ### Kotaro Ono
 ### Contributor:
-### 
+###
 ### Version: 1
 ###
-################################################ 
+################################################
 
 ### Installing required packages
 	devtools::install_github("fishvice/taggart", dependencies = FALSE)
@@ -74,7 +74,7 @@
 		Data_mackerel_all$ID <- factor(rep(1, nrow(Data_mackerel_all)))
 		Data_mackerel_all$firstyear <- as.Date(paste0(Data_mackerel_all$Release_year,"-01-01"))
 		Data_mackerel_all$date <- as.numeric(as.Date(Data_mackerel_all$relesedate) - Data_mackerel_all$firstyear)
-		
+
 		## Mvt rate = response variable in the analysis below
 		Data_mackerel_all$rate_annual <- Data_mackerel_all$dist / Data_mackerel_all$duration_std
 		Data_mackerel_all$log_rate_annual <- log(Data_mackerel_all$dist/Data_mackerel_all$duration_std)
@@ -82,7 +82,7 @@
 		Data_mackerel_all$log_rate_annual1 <- log(Data_mackerel_all$dist/Data_mackerel_all$duration_std1)
 		Data_mackerel_all$rate <- Data_mackerel_all$dist / Data_mackerel_all$duration
 		Data_mackerel_all$log_rate <- log(Data_mackerel_all$dist/Data_mackerel_all$duration)
-	
+
 	## Mvt N-S or E-W
 		Data_mackerel_all$EW_move <- as.numeric(pointDistance(matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$la),ncol=2), matrix(cbind(Data_mackerel_all$cLon, Data_mackerel_all$la), ncol=2), lonlat=TRUE))
 		Data_mackerel_all$NS_move <- as.numeric(pointDistance(matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$la),ncol=2), matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$cLat), ncol=2), lonlat=TRUE))
@@ -90,7 +90,7 @@
 	## Length bin
 		Data_mackerel_all$length_bin <- cut(Data_mackerel_all$length, breaks=c(0, 33, 38, 45))
 		Data_mackerel_all$length_bin  <- factor(Data_mackerel_all$length_bin, labels=c("(0,33cm]", "(33cm,38cm]", "(38cm,45cm]"))
-	
+
 	## Need to make some geographical division of the data
 		West_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(31:36, function(x) grep(x, unique(Data_mackerel_all$ices))))]
 		North_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(37:46, function(x) grep(x, unique(Data_mackerel_all$ices))))]
@@ -433,7 +433,7 @@
 			m0 <- gam(log_rate ~ length + s(lo, la), family=gaussian, data=subset(brr1, col=="purple"))
 			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
 
-        # This makes me think that I might need to develop a changepoint model (with K components) 
+        # This makes me think that I might need to develop a changepoint model (with K components)
 		# I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
 		# A Bayesian change point model has therefore been developped below
 			test <- Data_mackerel_use_Ireland_select
@@ -562,6 +562,41 @@
 				qqnorm(y=(y_pred_summary$mean-y_pred_summary$obs)/sd((y_pred_summary$mean-y_pred_summary$obs)))
 				abline(0,1, lty=2)
 
+
+		## Now doing the same model but using TMB
+				library(TMB)
+				library(TMBhelper)
+				use_version <- paste0(getwd(), "/src/mackerel_mvt_model")
+				compile(paste0(use_version, ".cpp"))
+				dyn.load(use_version)
+
+				N_threshold <- 2
+				data_tmb <- list(K=N_threshold,  # number of mixture components
+            				     N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+            				     X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
+            				     Nthres=length(threshold_vals),
+            				     thresh=threshold_vals,
+            				     mean_diff_tag_area= mean_diff_tag_area,
+            				     is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+            				     y = Data_mackerel_use_Ireland_select$log_rate
+            				     )
+
+				parameters_tmb <- list(beta = matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
+				                       log_sigma = rep(log(0.2),N_threshold)
+				                       )
+
+				Map = list()
+
+				op <- getwd()
+				setwd(paste0(getwd(),"/src"))
+				obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
+
+				set.seed(1)
+				rm(opt)
+				opt <- fit_tmb( obj=obj, lower=-14, upper=12, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+				
+				opt <- nlminb(obj=obj, lower=-14, upper=12, start=parameters_tmb) 
+				Check_Identifiable(obj)
 
 ############ Some nice plots to lok at mark recapture pattern
 
