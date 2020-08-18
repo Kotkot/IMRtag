@@ -11,7 +11,7 @@
 ###
 ################################################
 
-### Installing required packages
+#### Installing required packages
 	devtools::install_github("fishvice/taggart", dependencies = FALSE)
 
 	library(taggart)
@@ -26,7 +26,7 @@
 	library(gridExtra)
 	library(scatterpie)
 
-### Downloading data and checking it
+#### Downloading data and checking it
 	tg_catches()         %>% glimpse()
 	tg_catches_bio()     %>% glimpse()
 	tg_expeditions()     %>% glimpse()
@@ -47,8 +47,8 @@
 	view(Catch_data[which(Catch_data$reference_plant == "0f6a96b6-1b15-4fd2-ba2f-0d2aeae100bf"),])
 	Catch_bio[which(Catch_bio$id == "e0d58869-c196-4fb5-a1c0-cba20f700da2"),]
 
-### Define the data frame: creating and merging variables
-	## Some base variables
+#### Define the data frame: creating and merging variables
+	### Some base variables
 		Data_mackerel_all <- Data_mackerel %>% left_join(Catch_data, by=c("catchid" = "pkid"))
 		Data_mackerel_all$dist <- pointDistance(matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$la),ncol=2), matrix(cbind(Data_mackerel_all$cLon, Data_mackerel_all$cLat), ncol=2), lonlat=TRUE)
 		Data_mackerel_all$duration <- Data_mackerel_all$recapturedate - Data_mackerel_all$relesedate
@@ -83,15 +83,15 @@
 		Data_mackerel_all$rate <- Data_mackerel_all$dist / Data_mackerel_all$duration
 		Data_mackerel_all$log_rate <- log(Data_mackerel_all$dist/Data_mackerel_all$duration)
 
-	## Mvt N-S or E-W
+	### Mvt N-S or E-W
 		Data_mackerel_all$EW_move <- as.numeric(pointDistance(matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$la),ncol=2), matrix(cbind(Data_mackerel_all$cLon, Data_mackerel_all$la), ncol=2), lonlat=TRUE))
 		Data_mackerel_all$NS_move <- as.numeric(pointDistance(matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$la),ncol=2), matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$cLat), ncol=2), lonlat=TRUE))
 
-	## Length bin
+	### Length bin
 		Data_mackerel_all$length_bin <- cut(Data_mackerel_all$length, breaks=c(0, 33, 38, 45))
 		Data_mackerel_all$length_bin  <- factor(Data_mackerel_all$length_bin, labels=c("(0,33cm]", "(33cm,38cm]", "(38cm,45cm]"))
 
-	## Need to make some geographical division of the data
+	### Need to make some geographical division of the data
 		West_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(31:36, function(x) grep(x, unique(Data_mackerel_all$ices))))]
 		North_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(37:46, function(x) grep(x, unique(Data_mackerel_all$ices))))]
 		Bergen <- unique(Data_mackerel_all$ices)[grep("F", unique(Data_mackerel_all$ices))]
@@ -112,32 +112,32 @@
 
 		Data_mackerel_all$Category <- paste(Data_mackerel_all$Tag_area, Data_mackerel_all$Release_timing, sep="_")
 
-### If I want to look at both the mark and recapture
+#### If I want to look at both the mark and recapture
 	Data_mackerel_final <- Data_mackerel_all %>% subset(., !is.na(dist))
 
-### Some visual inspection of the tagging data
-	## How often do mackerel move south
+#### Some visual inspection of the tagging data
+	### How often do mackerel move south
 		ggplot(Data_mackerel_all[which((Data_mackerel_all$la > Data_mackerel_all$cLat) ==TRUE),]) +
 		geom_point(aes(x=lo, y=la)) + geom_point(aes(x=cLon, y=cLat), col="red")
 
-	## Something is going on.... let's dig a bit more
-		# Release month and location
+	### Something is going on.... let's dig a bit more
+		## Release month and location
 			with(Data_mackerel_final, table(Release_month, Tag_area_large))
 			with(Data_mackerel_final, table(Release_month, Tag_area_large, Release_year))
 			with(Data_mackerel_final, table(Release_month, Tag_area))
 			with(Data_mackerel_final, table(Release_month, Tag_area, Release_year))
 
-		# Catch month and location
+		## Catch month and location
 			with(Data_mackerel_final, table(Catch_month, ices_rectangle))
 			with(Data_mackerel_final, table(Catch_month, recatch_ices_rectangle, Catch_year))
 			with(Data_mackerel_final, table(Catch_month, Tag_area))
 			with(Data_mackerel_final, table(Catch_month, Tag_area, Release_year))
 
-		# Release month and length
+		## Release month and length
 			ggplot(Data_mackerel_final, aes(x=Release_month, y=length), alpha=0.5) + geom_boxplot() +
 			facet_grid(Tag_area_large~ Release_year) + theme_bw() #+ coord_flip()
 
-		# the duration
+		## the duration
 			ggplot(Data_mackerel_final, aes(x=length_bin, y=duration)) + facet_grid(Tag_area_large ~ Release_year) +
 			geom_boxplot() + theme_bw()
 
@@ -162,9 +162,9 @@
 			ncount_year <- Data_mackerel_final %>% group_by(Release_year) %>% count()
 			text(1:9, rep(48, 9), sapply(1:9, function(x) paste0("n=", ncount_year[x,2])), cex=0.9)
 
-### Some plotting of the tagging location and recapture
-### Maps + centre of gravity
-	## By Year
+#### Some plotting of the tagging location and recapture
+#### Maps + centre of gravity
+	### By Year
 		Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year) %>%
 								mutate(mean_lon_tag=mean(lo),
 									   mean_lat_tag=mean(la),
@@ -212,8 +212,8 @@
 					 gg[[7]],gg[[8]],gg[[9]],
 					 nrow=3, ncol=3)
 
-    ## by year, region and size
-		# all years
+    ### by year, region and size
+		## all years
         ggg <- list()
         for (ijk in seq_along(2011:2019))
         {
@@ -230,7 +230,7 @@
         grid.arrange(ggg[[7]],ggg[[8]],ggg[[9]],
                      nrow=3, ncol=1)
 
-		# only 1 year subset
+		## only 1 year subset
         gggg <- list()
         for (ijk in seq_along(2011:2019))
         {
@@ -248,11 +248,11 @@
                      nrow=3, ncol=1)
 
 
-### Calculate linear distance between mark and recapture location
-### Then standardize by number of days in between
-### Model this with respect to the different covariates
+#### Calculate linear distance between mark and recapture location
+#### Then standardize by number of days in between
+#### Model this with respect to the different covariates
 
-	## Analysis over the whole area: but area west&north of Ireland is the only place with consistent release over the years
+	### Analysis over the whole area: but area west&north of Ireland is the only place with consistent release over the years
 
 		## Using duration (not standardized)
 		  # m01 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
@@ -328,11 +328,11 @@
 		#mm1 <- glmmTMB(log_rate ~ length + mat(pos+0|ID) + Release_year, family=gaussian, data=Data_mackerel_final)
 
 
-	## Limiting the analysis to releases around Ireland:
+	### Limiting the analysis to releases around Ireland:
 
-      Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
+		Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
 
-		# Using duration (not standardized) but focusing on within year recapture
+		## Using duration (not standardized) but focusing on within year recapture
 			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2019)
 			Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
 
@@ -371,7 +371,7 @@
 			plotResiduals(Data_mackerel_use_Ireland_select$la, sim_select$scaledResiduals, main = "Latitude")
 			plotResiduals(Data_mackerel_use_Ireland_select$lo, sim_select$scaledResiduals, main = "Longitude")
 
-		# Using duration std1
+		## Using duration std1
 			# mmm0_Ireland <- gam(log_rate_annual1 ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland)
 			# mmm01_Ireland <- gam(log_rate_annual1 ~ s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
 			# mmm02_Ireland <- gam(log_rate_annual1 ~ s(length) + Category, family=gaussian, data=Data_mackerel_use_Ireland_select)
@@ -403,10 +403,10 @@
 			# plotResiduals(Data_mackerel_use_Ireland$la, sim_std1_Ireland$scaledResiduals, main = "Latitude")
 			# plotResiduals(Data_mackerel_use_Ireland$lo, sim_std1_Ireland$scaledResiduals, main = "Longitude")
 
-		# Conclusion:
-		# Residual pattern does not look good
+		## Conclusion:
+		## Residual pattern does not look good
 
-        # Do some explanatory analysis to explore what is causing these patterns of residuals
+        ## Do some explanatory analysis to explore what is causing these patterns of residuals
 			with(Data_mackerel_use_Ireland_select, plot(length, log_rate))
 			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(length, log_rate))
 			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(length, log_rate))
@@ -433,9 +433,9 @@
 			m0 <- gam(log_rate ~ length + s(lo, la), family=gaussian, data=subset(brr1, col=="purple"))
 			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
 
-        # This makes me think that I might need to develop a changepoint model (with K components)
-		# I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
-		# A Bayesian change point model has therefore been developped below
+        ## This makes me think that I might need to develop a changepoint model (with K components)
+		## I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
+		## A Bayesian change point model has therefore been developped below
 			test <- Data_mackerel_use_Ireland_select
 			test <- test[order(test$log_rate),]
 
@@ -564,34 +564,37 @@
 
 
 		## Now doing the same model but using TMB
-				library(TMB)
-				library(TMBhelper)
+			library(TMB)
+			library(TMBhelper)
+			
+			# A single change point model
+			
 				use_version <- paste0(getwd(), "/src/mackerel_mvt_model")
 				compile(paste0(use_version, ".cpp"))
 				dyn.load(use_version)
-
+				
 				N_threshold <- 2
 				data_tmb <- list(K=N_threshold,  # number of mixture components
-            				     N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
-            				     X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
-            				     Nthres=length(threshold_vals),
-            				     thresh=threshold_vals,
-            				     mean_diff_tag_area= mean_diff_tag_area,
-            				     is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
-            				     y = Data_mackerel_use_Ireland_select$log_rate
-            				     )
-
+								 N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+								 X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
+								 Nthres=length(threshold_vals),
+								 thresh=threshold_vals,
+								 mean_diff_tag_area= mean_diff_tag_area,
+								 is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+								 y = Data_mackerel_use_Ireland_select$log_rate
+								 )
+				
 				parameters_tmb <- list(beta = matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
-				                       log_sigma = rep(log(0.2),N_threshold)
-				                       )
-
+									   log_sigma = rep(log(0.2),N_threshold)
+									   )
+				
 				Map = list()
-
+				
 				op <- getwd()
 				setwd(paste0(getwd(),"/src"))
 				obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 				setwd(op)
-
+				
 				set.seed(1)
 				rm(opt)
 				opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
@@ -601,42 +604,117 @@
 				mu_pred <- matrix(summary(sd_report_1break, "report")[,1], ncol=2, byrow=FALSE) 
 				
 				# Calculating the actual prediction
-				Likelihood <- matrix(NA, nrow=data_tmb$N, ncol=data_tmb$Nthres)
-				for (n in 1:data_tmb$N){
-					for (thr in 1:data_tmb$Nthres){
-						if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-							Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,1], sigma[1])
-						}
-						if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-							Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,2], sigma[2])
-						}
-					}
-				}
-					
-				# The weighting factor is the average likelihood across the N datapoint per threshold value 
-				weight <- apply(Likelihood, 2, mean)
-				weight <- weight/sum(weight)
-				plot(data_tmb$thresh, weight)
-				
-				Prediction <- rep(0, data_tmb$N)
-				for (n in 1:data_tmb$N){
-					for (thr in 1:data_tmb$Nthres){
-						if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-							Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,1]
-						}
-						if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-							Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,2]
+					Likelihood <- matrix(NA, nrow=data_tmb$N, ncol=data_tmb$Nthres)
+					for (n in 1:data_tmb$N){
+						for (thr in 1:data_tmb$Nthres){
+							if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+								Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,1], sigma[1])
+							}
+							if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+								Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,2], sigma[2])
+							}
 						}
 					}
-				}
-				
-				plot(Prediction, data_tmb$y); abline(0,1)
-				qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
-				abline(0,1, lty=2)
-				
 						
+				# The weighting factor is the average likelihood across the N datapoint per threshold value 
+					weight <- apply(Likelihood, 2, mean)
+					weight <- weight/sum(weight)
+					plot(data_tmb$thresh, weight)
+					
+					Prediction <- rep(0, data_tmb$N)
+					for (n in 1:data_tmb$N){
+						for (thr in 1:data_tmb$Nthres){
+							if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+								Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,1]
+							}
+							if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+								Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,2]
+							}
+						}
+					}
+					
+					plot(Prediction, data_tmb$y); abline(0,1)
+					qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
+					abline(0,1, lty=2)
+					
+				# Conclusion: 
+				# Something weird is happening.... not the same results as the Stan model...
+				# But it is technically the same model... just a different platform
+					
+				
+			# A 2 break points
 
-############ Some nice plots to lok at mark recapture pattern
+				N_threshold <- 3
+				data_tmb$K <- N_threshold
+				compile(paste0(getwd(), "/mackerel_mvt_model_2breaks.cpp"))
+				dyn.load(paste0(getwd(), "/mackerel_mvt_model_2breaks"))
+				#parameters_tmb <- to_save[[2]]
+				set.seed(1)
+				parameters_tmb <- list(beta = matrix(c(rep(10,3),runif(3*3,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
+				                       log_sigma = rep(log(0.2),N_threshold)
+				                       )
+
+				Map = list()
+
+				op <- getwd()
+				#setwd(paste0(getwd(),"/src"))
+				obj2break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_2breaks", map=Map)
+
+				library(TMBhelper)
+				opt_2breaks <- fit_tmb( obj=obj2break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+				summary(opt_2breaks)
+				
+				sd_report_2break <- sdreport(obj2break)
+				Check_Identifiable(opt_2breaks)
+				sigma <- as.vector(exp(summary(sd_report_2break, "fixed")[grep("log_sigma", rownames(summary(sd_report_2break, "fixed"))),1]))
+				mu_pred <- matrix(summary(sd_report_2break, "report")[,1], ncol=3, byrow=FALSE) 
+
+				# Calculating the actual prediction
+					Likelihood <- array(NA, dim=c(data_tmb$N, data_tmb$Nthres, data_tmb$Nthres))
+					  for (thr in 1:(data_tmb$Nthres-1)) {
+						for (thr2 in (thr+1):data_tmb$Nthres) {
+							for (n in 1:data_tmb$N){
+								if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+								Likelihood[n,thr,thr2] = dnorm(data_tmb$y[n], mu_pred[n,1], sigma[1])
+								}
+								if ((data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)) & (data_tmb$y[n] < (data_tmb$thresh[thr2]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area))){
+									Likelihood[n,thr,thr2] = dnorm(data_tmb$y[n], mu_pred[n,2], sigma[2])
+								}
+								if (data_tmb$y[n] >= (data_tmb$thresh[thr2]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+									Likelihood[n,thr,thr2] = dnorm(data_tmb$y[n], mu_pred[n,3], sigma[3])
+								}
+							}	
+						}
+					}
+					
+				# The weighting factor is the likelihood (but with the sum to 1 constraint)				
+					for (i in 1:data_tmb$N){
+						Likelihood[i,,] <- Likelihood[i,,]/sum(Likelihood[i,,], na.rm=T)
+					}
+					
+					Prediction <- rep(0, data_tmb$N)
+					for (n in 1:data_tmb$N){
+						for (thr in 1:(data_tmb$Nthres-1)) {
+							for (thr2 in (thr+1):data_tmb$Nthres) {
+								if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+								Prediction[n] = Prediction[n]+Likelihood[n,thr,thr2]*mu_pred[n,1]
+								}
+								if ((data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)) & (data_tmb$y[n] < (data_tmb$thresh[thr2]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area))){
+								Prediction[n] = Prediction[n]+Likelihood[n,thr,thr2]*mu_pred[n,2]
+								}
+								if (data_tmb$y[n] >= (data_tmb$thresh[thr2]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
+								Prediction[n] = Prediction[n]+Likelihood[n,thr,thr2]*mu_pred[n,3]
+								}
+							}	
+						}
+					}
+
+					plot(Prediction, data_tmb$y); abline(0,1)
+					qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
+					abline(0,1, lty=2)
+			
+
+############ Some nice plots to look at mark recapture pattern
 
   ## some quick investigation
     Data_mackerel_all %>% subset(Release_year==2018 &
