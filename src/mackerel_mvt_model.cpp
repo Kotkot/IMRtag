@@ -24,6 +24,7 @@ Type objective_function<Type>::operator() ()
   DATA_SCALAR(mean_diff_tag_area);
   DATA_VECTOR(is_from_west);
   DATA_VECTOR(y);                  		  //  response
+  DATA_INTEGER(Likconfig);
 
   // Parameters
   PARAMETER_MATRIX(beta);
@@ -35,12 +36,22 @@ Type objective_function<Type>::operator() ()
   // nll = -Nthres*log(Nthres);	// the constant for the prior not needed in TMB
 
   matrix<Type> mu(N,K);
-
+  
   // Define mu
   for(int j=0;j<K;j++){
 	mu.col(j)=X*beta.col(j);
   }
 
+  // Define the gamma parameters (when needed) 
+  matrix<Type> shape(N,K);
+  matrix<Type> scale(N,K);
+  for(int j=0;j<K;j++){
+	for (int n=0;n<N;n++){
+		shape(n,j)= pow(mu(n,j),2)/pow(sigma(j),2);
+		scale(n,j)= pow(sigma(j),2)/mu(n,j);
+	}
+  }
+  
   // vector<Type> lp_e(Nthres+1);
   // vector<Type> lp_l(Nthres+1);
 
@@ -65,10 +76,20 @@ Type objective_function<Type>::operator() ()
 	for (int thr=0;thr<Nthres;thr++) {
 		for (int n=0;n<N;n++){
 		if (y(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-			nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);
+			if (Likconfig ==0){
+				nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);			// for normal distribution on log scale
+			}
+			if (Likconfig ==1){
+				nll -= dgamma(y(n), shape(n,0), scale(n,0), TRUE);		// for gamma distribution on log scale
+			}
 		}
 		if (y(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-			nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
+			if (Likconfig ==0){
+				nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
+			}
+			if (Likconfig ==1){
+				nll -= dgamma(y(n), shape(n,1), scale(n,1), TRUE);		// for gamma distribution on log scale
+			}
 		}
     }
   }

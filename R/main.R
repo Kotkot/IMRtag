@@ -581,10 +581,11 @@
 								 thresh=threshold_vals,
 								 mean_diff_tag_area= mean_diff_tag_area,
 								 is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
-								 y = Data_mackerel_use_Ireland_select$log_rate
+								 y = Data_mackerel_use_Ireland_select$log_rate,
+								 Likconfig = 1      # 0 = dnorm, 1 = dgamma 
 								 )
 				
-				parameters_tmb <- list(beta = matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
+				parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif(3*N_threshold,-2,2),runif(6*N_threshold,-0.05,0.05)),byrow=T, ncol=N_threshold),
 									   log_sigma = rep(log(0.2),N_threshold)
 									   )
 				
@@ -592,14 +593,21 @@
 				
 				op <- getwd()
 				setwd(paste0(getwd(),"/src"))
-				obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
+				obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 				setwd(op)
 				
 				set.seed(1)
 				rm(opt)
+				data_tmb$Likconfig = 0
+				obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 				opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+				# data_tmb$Likconfig = 1
+				# parameters_tmb <- list(beta=matrix(opt1break$par[1:(ncol(data_tmb$X)*N_threshold)],ncol=2), log_sigma=as.numeric(obj1break$par[(ncol(data_tmb$X)*N_threshold)+1:2]))
+				# obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
+				# opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+				
 				sd_report_1break <- sdreport(obj1break)
-				Check_Identifiable(opt1break)
+				Check_Identifiable(obj1break)
 				sigma <- as.vector(exp(summary(sd_report_1break, "fixed")[grep("log_sigma", rownames(summary(sd_report_1break, "fixed"))),1]))
 				mu_pred <- matrix(summary(sd_report_1break, "report")[,1], ncol=2, byrow=FALSE) 
 				
