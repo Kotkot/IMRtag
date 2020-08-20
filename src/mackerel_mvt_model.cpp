@@ -36,13 +36,13 @@ Type objective_function<Type>::operator() ()
   // nll = -Nthres*log(Nthres);	// the constant for the prior not needed in TMB
 
   matrix<Type> mu(N,K);
-  
+
   // Define mu
   for(int j=0;j<K;j++){
 	mu.col(j)=X*beta.col(j);
   }
 
-  // Define the gamma parameters (when needed) 
+  // Define the gamma parameters (when needed)
   matrix<Type> shape(N,K);
   matrix<Type> scale(N,K);
   for(int j=0;j<K;j++){
@@ -51,7 +51,7 @@ Type objective_function<Type>::operator() ()
 		scale(n,j)= pow(sigma(j),2)/mu(n,j);
 	}
   }
-  
+
   // vector<Type> lp_e(Nthres+1);
   // vector<Type> lp_l(Nthres+1);
 
@@ -68,7 +68,7 @@ Type objective_function<Type>::operator() ()
         // lp_l(t + 1) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
       // }  // Now define the mean travel distance for each mixture component
     // }
-  
+
     // for (int i=0;i<Nthres;i++){
 	// nll -= lp_l(Nthres + 1) + lp_e(i) - lp_l(i);
 	// }
@@ -93,14 +93,14 @@ Type objective_function<Type>::operator() ()
 		}
     }
   }
-   
+
   // ============ Outputs =============
 
   // Model parameters
   REPORT(beta);
   REPORT(sigma);
   ADREPORT(mu);
- 
+
   //--------------------------------------------------------------------
 
   return nll;

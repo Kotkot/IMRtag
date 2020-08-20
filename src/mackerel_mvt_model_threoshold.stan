@@ -26,6 +26,7 @@ transformed data {
 parameters {
   matrix[Nx,K] beta;             // locations of mixture components
   real<lower=0> sigma;  // scales of mixture components
+  //vector<lower=0>[Nthres] sigma;  // scales of mixture components
 }
 
 transformed parameters {
@@ -40,6 +41,7 @@ transformed parameters {
   for (thr in 1:Nthres) {
     for (n in 1:N)
       lp[thr] += normal_lpdf(y[n] | y[n] < (thresh[thr]+is_from_west[n]*mean_diff_tag_area) ? mu[n,1] : mu[n,2], sigma);
+      //lp[thr] += normal_lpdf(y[n] | y[n] < (thresh[thr]+is_from_west[n]*mean_diff_tag_area) ? mu[n,1] : mu[n,2], y[n] < (thresh[thr]+is_from_west[n]*mean_diff_tag_area) ? sigma[1] : sigma[2]);
   }
 
 }
