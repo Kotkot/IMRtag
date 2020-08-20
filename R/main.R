@@ -562,17 +562,25 @@
 				qqnorm(y=(y_pred_summary$mean-y_pred_summary$obs)/sd((y_pred_summary$mean-y_pred_summary$obs)))
 				abline(0,1, lty=2)
 
+				# Plot marginal effects
+				Beta_estimates <- summary(mixture_mod)$summary[grep("beta", rownames(summary(mixture_mod)$summary)),]
+				group1 <- Beta_estimates[seq(1,20,by=2),]
+				group2 <- Beta_estimates[seq(2,20,by=2),]
+				aaa <- cbind(group1[,1], group2[,1])
+				rownames(aaa) <- colnames(XX)
+        print(aaa)
+
 
 		## Now doing the same model but using TMB
 			library(TMB)
 			library(TMBhelper)
-			
+
 			# A single change point model
-			
+
 				use_version <- paste0(getwd(), "/src/mackerel_mvt_model")
 				compile(paste0(use_version, ".cpp"))
 				dyn.load(use_version)
-				
+
 				N_threshold <- 2
 				data_tmb <- list(K=N_threshold,  # number of mixture components
 								 N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
@@ -582,20 +590,20 @@
 								 mean_diff_tag_area= mean_diff_tag_area,
 								 is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
 								 y = Data_mackerel_use_Ireland_select$log_rate,
-								 Likconfig = 1      # 0 = dnorm, 1 = dgamma 
+								 Likconfig = 1      # 0 = dnorm, 1 = dgamma
 								 )
-				
+
 				parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif(3*N_threshold,-2,2),runif(6*N_threshold,-0.05,0.05)),byrow=T, ncol=N_threshold),
 									   log_sigma = rep(log(0.2),N_threshold)
 									   )
-				
+
 				Map = list()
-				
+
 				op <- getwd()
 				setwd(paste0(getwd(),"/src"))
 				obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 				setwd(op)
-				
+
 				set.seed(1)
 				rm(opt)
 				data_tmb$Likconfig = 0
@@ -605,12 +613,12 @@
 				# parameters_tmb <- list(beta=matrix(opt1break$par[1:(ncol(data_tmb$X)*N_threshold)],ncol=2), log_sigma=as.numeric(obj1break$par[(ncol(data_tmb$X)*N_threshold)+1:2]))
 				# obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 				# opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
-				
+
 				sd_report_1break <- sdreport(obj1break)
 				Check_Identifiable(obj1break)
 				sigma <- as.vector(exp(summary(sd_report_1break, "fixed")[grep("log_sigma", rownames(summary(sd_report_1break, "fixed"))),1]))
-				mu_pred <- matrix(summary(sd_report_1break, "report")[,1], ncol=2, byrow=FALSE) 
-				
+				mu_pred <- matrix(summary(sd_report_1break, "report")[,1], ncol=2, byrow=FALSE)
+
 				# Calculating the actual prediction
 					Likelihood <- matrix(NA, nrow=data_tmb$N, ncol=data_tmb$Nthres)
 					for (n in 1:data_tmb$N){
@@ -623,12 +631,12 @@
 							}
 						}
 					}
-						
-				# The weighting factor is the average likelihood across the N datapoint per threshold value 
+
+				# The weighting factor is the average likelihood across the N datapoint per threshold value
 					weight <- apply(Likelihood, 2, mean)
 					weight <- weight/sum(weight)
 					plot(data_tmb$thresh, weight)
-					
+
 					Prediction <- rep(0, data_tmb$N)
 					for (n in 1:data_tmb$N){
 						for (thr in 1:data_tmb$Nthres){
@@ -640,16 +648,16 @@
 							}
 						}
 					}
-					
+
 					plot(Prediction, data_tmb$y); abline(0,1)
 					qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
 					abline(0,1, lty=2)
-					
-				# Conclusion: 
+
+				# Conclusion:
 				# Something weird is happening.... not the same results as the Stan model...
 				# But it is technically the same model... just a different platform
-					
-				
+
+
 			# A 2 break points
 
 				N_threshold <- 3
@@ -671,11 +679,11 @@
 				library(TMBhelper)
 				opt_2breaks <- fit_tmb( obj=obj2break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 				summary(opt_2breaks)
-				
+
 				sd_report_2break <- sdreport(obj2break)
 				Check_Identifiable(opt_2breaks)
 				sigma <- as.vector(exp(summary(sd_report_2break, "fixed")[grep("log_sigma", rownames(summary(sd_report_2break, "fixed"))),1]))
-				mu_pred <- matrix(summary(sd_report_2break, "report")[,1], ncol=3, byrow=FALSE) 
+				mu_pred <- matrix(summary(sd_report_2break, "report")[,1], ncol=3, byrow=FALSE)
 
 				# Calculating the actual prediction
 					Likelihood <- array(NA, dim=c(data_tmb$N, data_tmb$Nthres, data_tmb$Nthres))
@@ -691,15 +699,15 @@
 								if (data_tmb$y[n] >= (data_tmb$thresh[thr2]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
 									Likelihood[n,thr,thr2] = dnorm(data_tmb$y[n], mu_pred[n,3], sigma[3])
 								}
-							}	
+							}
 						}
 					}
-					
-				# The weighting factor is the likelihood (but with the sum to 1 constraint)				
+
+				# The weighting factor is the likelihood (but with the sum to 1 constraint)
 					for (i in 1:data_tmb$N){
 						Likelihood[i,,] <- Likelihood[i,,]/sum(Likelihood[i,,], na.rm=T)
 					}
-					
+
 					Prediction <- rep(0, data_tmb$N)
 					for (n in 1:data_tmb$N){
 						for (thr in 1:(data_tmb$Nthres-1)) {
@@ -713,14 +721,14 @@
 								if (data_tmb$y[n] >= (data_tmb$thresh[thr2]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
 								Prediction[n] = Prediction[n]+Likelihood[n,thr,thr2]*mu_pred[n,3]
 								}
-							}	
+							}
 						}
 					}
 
 					plot(Prediction, data_tmb$y); abline(0,1)
 					qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
 					abline(0,1, lty=2)
-			
+
 
 ############ Some nice plots to look at mark recapture pattern
 
@@ -792,7 +800,7 @@
   #### Plot to investigate the location of recapture from Ireland, by year and
   #### Time of release
   #### To Determine if what matter is time of release or duration
-    plot_Yr_timerelease <- function(Year)
+    plot_Yr_timerelease <- function(Year, lag=0)
     {
       dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
                                                     Tag_area %in% c("West_Ireland", "North_Ireland"))
@@ -800,7 +808,7 @@
       dat_release$Tag_area <- as.character(dat_release$Tag_area)
       dat_release$Tag_area <- as.factor(dat_release$Tag_area)
       dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
-      dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year &
+      dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
                                                     Tag_area %in% c("West_Ireland", "North_Ireland"))
       dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
       dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
@@ -812,8 +820,8 @@
       dat_recap$Release_timing[which(dat_recap$Release_monthday >= "05_15" & dat_recap$Release_monthday <= "05_31")] <- "Mid"
 
       ncount_release <- dat_release %>% group_by(Tag_area) %>% count()
-      ncount_release$lon = c(-17, -17)
-      ncount_release$lat = c(57, 51)
+      ncount_release$lon = c(-17.5, -17.5)
+      ncount_release$lat = c(56, 52)
       ncount_release$label = paste0("n=", ncount_release$n)
 
       ncount_recap <- dat_recap %>% group_by(Tag_area) %>% count()
@@ -823,7 +831,7 @@
 
       dat_recap$Category <- paste(dat_recap$Tag_area, dat_recap$Release_timing, sep="_")
 
-      Select_catch <- subset(Catch_data, subset=c(catchdate ==Year))
+      Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
       Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
       Select_catch <- subset(Select_catch, cLat<72)
       hull_catch <- Select_catch %>% dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat)
@@ -847,6 +855,22 @@
       new_proj <- "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs"
       hull_new <- spTransform(hull_new, new_proj)
       hull_new <- as.data.frame(hull_new)
+      Vertex_nb <- table(hull_new$Category)
+      to_add <- which(Vertex_nb==3)
+      to_remove <- which(Vertex_nb<3)
+      if (length(to_add)>0){
+        for (i in seq_along(to_add)){
+          test <- subset(hull_new, Category==unique(hull_new$Category)[to_add[i]])
+          test[4,] <- test[1,]
+          hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_add[i]])
+          hull_new <- rbind(hull_new, test)
+        }
+      }
+      if (length(to_remove)>0){
+        for (i in seq_along(to_remove)){
+          hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_remove[i]])
+        }
+      }
       area <- sapply(unique(hull_new$Category), function(x) Polygon(subset(hull_new, Category==x)[,c('cLon','cLat')])@area)
       area_category <- rep(NA, length(cats))
       names(area_category) <- cats
@@ -881,50 +905,45 @@
         geom_text(data=prop_size_text, aes(x=lon, y=lat, label=label), size=2, hjust = 0)
       g1
 
-
-      return(list(g1, area_category))
+      RES <- list()
+      RES$plot <- g1
+      RES$area <- area_category
+      return(RES)
     }
 
     ## 2011-2013, there is no recapture originating from both West and North side of Ireland
-    p2014_timerelease <- plot_Yr_timerelease(2014)
-    p2015_timerelease <- plot_Yr_timerelease(2015)
-    p2016_timerelease <- plot_Yr_timerelease(2016)
-    p2017_timerelease <- plot_Yr_timerelease(2017)
-    p2018_timerelease <- plot_Yr_timerelease(2018)
-    p2019_timerelease <- plot_Yr_timerelease(2019)
+    Make_plot <- function(Years, lag){
+      SAVE <- list()
+      areas <- c()
+      for (yr in seq_along(Years)){
+        SAVE[[yr]] <- plot_Yr_timerelease(Years[[yr]], lag=lag)
+        areas <- rbind(areas, SAVE[[yr]][[2]])
+      }
+      areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
+      colnames(areas.std) <- Years
 
-    areas <- rbind(p2014_timerelease[[2]],
-                   p2015_timerelease[[2]],
-                   p2016_timerelease[[2]],
-                   p2017_timerelease[[2]],
-                   p2018_timerelease[[2]],
-                   p2019_timerelease[[2]])
-    areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
-    colnames(areas.std) <- 2014:2019
-    # Testing mid W. Ireland bigger than others
-    t.test(areas[-4,5], areas[-4,1], alternative = "greater")
-    t.test(areas[-4,5], areas[-4,2], alternative = "greater")
-    t.test(areas[-4,5], areas[-4,3], alternative = "greater")
-    t.test(areas[-4,5], areas[-4,4], alternative = "greater")
-    t.test(areas[-4,5], areas[-4,6], alternative = "greater")
-    # Testing mid N. Ireland smaller than others
-    t.test(areas[,2], areas[,1], alternative = "less")
-    t.test(areas[,2], areas[,3], alternative = "less")
-    t.test(areas[,2], areas[,4], alternative = "less")
-    t.test(areas[,2], areas[,5], alternative = "less")
-    t.test(areas[,2], areas[,6], alternative = "less")
+      areas_df <- reshape2::melt(areas.std, value.name="Size_area")
+      colnames(areas_df) <- c("Region", "Year", "Size_area")
+      areas_df$Year <- as.factor(areas_df$Year)
+      areas_df$Region <- as.factor(areas_df$Region)
 
-    t.test(areas[4,], areas[1,], alternative = "two.sided")
-    t.test(areas[4,], areas[2,], alternative = "two.sided")
-    t.test(areas[4,], areas[3,], alternative = "two.sided")
-    t.test(areas[4,], areas[4,], alternative = "two.sided")
-    t.test(areas[4,], areas[5,], alternative = "two.sided")
+      lm1 <- (lm(Size_area ~ Region + Year, areas_df))
 
-    #ggplot() + gg_text()
-    ggg_timerelease <- arrangeGrob(p2014_timerelease[[1]],p2015_timerelease[[1]],p2016_timerelease[[1]],
-                       p2017_timerelease[[1]],p2018_timerelease[[1]],p2019_timerelease[[1]],
-                       nrow=3, ncol=2)
-    ggsave(ggg_timerelease, filename=paste0("../plots/mark_recap_release_2014-2019.pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+      ## Plotting
+      ggg_timerelease <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+      ggsave(ggg_timerelease, filename=paste0("../plots/mark_recap_release_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+
+      RES <- list()
+      RES$areas <- areas.std
+      RES$areas.lm <- lm1
+      return(RES)
+    }
+
+    # no lag : same year to 2 years lag in recapture
+      (Area_lag0 <- Make_plot(Years=2014:2019, lag=0))
+      (Area_lag1 <- Make_plot(Years=2014:2018, lag=1))
+      (Area_lag2 <- Make_plot(Years=2014:2017, lag=2))
+
 
   ### Plot to investigate the location of recapture from Ireland, by year and
   ### Duration between release and catch
