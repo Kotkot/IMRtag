@@ -23,6 +23,7 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(thresh);
   DATA_SCALAR(mean_diff_tag_area);
   DATA_VECTOR(is_from_west);
+  DATA_VECTOR(thres_cov);                  		  //  response
   DATA_VECTOR(y);                  		  //  response
   DATA_INTEGER(Likconfig);
 
@@ -39,8 +40,13 @@ Type objective_function<Type>::operator() ()
 
   // Define mu
   for(int j=0;j<K;j++){
+	// for (int i=0;i<N;i++){
 	mu.col(j)=X*beta.col(j);
-  }
+	// vector<Type> temp1=X.row(i);
+	// vector<Type> temp2=beta.col(j);
+	//  mu(i,j)=(temp1*temp2).sum();
+	//  }
+	 }
 
   // Define the gamma parameters (when needed)
   matrix<Type> shape(N,K);
@@ -54,6 +60,7 @@ Type objective_function<Type>::operator() ()
 
   // vector<Type> lp_e(Nthres+1);
   // vector<Type> lp_l(Nthres+1);
+  matrix<Type> LL(N,Nthres);
 
     // for (int n=thresh_start(0);n<thresh_end(0);n++){	// for all observations below the first threshold
       // lp_e(0) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
@@ -75,20 +82,26 @@ Type objective_function<Type>::operator() ()
 
 	for (int thr=0;thr<Nthres;thr++) {
 		for (int n=0;n<N;n++){
-		if (y(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+		// if (thres_cov(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+		if (thres_cov(n) < (thresh(thr))){
 			if (Likconfig ==0){
 				nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);			// for normal distribution on log scale
+			  LL(n,thr)=dnorm(y(n), mu(n,0), sigma(0), TRUE);
 			}
 			if (Likconfig ==1){
 				nll -= dgamma(y(n), shape(n,0), scale(n,0), TRUE);		// for gamma distribution on log scale
+			  LL(n,thr)=dgamma(y(n), shape(n,0), scale(n,0), TRUE);
 			}
 		}
-		if (y(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+		// if (thres_cov(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+		if (thres_cov(n) >= (thresh(thr))){
 			if (Likconfig ==0){
 				nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
+			  LL(n,thr)=dnorm(y(n), mu(n,1), sigma(1), TRUE);
 			}
 			if (Likconfig ==1){
 				nll -= dgamma(y(n), shape(n,1), scale(n,1), TRUE);		// for gamma distribution on log scale
+			  LL(n,thr)=dgamma(y(n), shape(n,1), scale(n,1), TRUE);
 			}
 		}
     }
@@ -99,6 +112,7 @@ Type objective_function<Type>::operator() ()
   // Model parameters
   REPORT(beta);
   REPORT(sigma);
+  REPORT(LL);
   ADREPORT(mu);
 
   //--------------------------------------------------------------------
