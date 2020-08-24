@@ -74,6 +74,10 @@
 		Data_mackerel_all$ID <- factor(rep(1, nrow(Data_mackerel_all)))
 		Data_mackerel_all$firstyear <- as.Date(paste0(Data_mackerel_all$Release_year,"-01-01"))
 		Data_mackerel_all$date <- as.numeric(as.Date(Data_mackerel_all$relesedate) - Data_mackerel_all$firstyear)
+		Data_mackerel_all$julian_release <-  as.numeric(julian(Data_mackerel_all$relesedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
+		Data_mackerel_all$julian_release_std <-  Data_mackerel_all$julian %% 365
+		Data_mackerel_all$julian_recapture <-  as.numeric(julian(Data_mackerel_all$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
+		Data_mackerel_all$julian_recapture_std <-  Data_mackerel_all$julian_recapture %% 365
 
 		## Mvt rate = response variable in the analysis below
 		Data_mackerel_all$rate_annual <- Data_mackerel_all$dist / Data_mackerel_all$duration_std
@@ -336,12 +340,19 @@
 			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2019)
 			Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
 
+			with(Data_mackerel_use_Ireland_select, plot(length, rate))
+			with(Data_mackerel_use_Ireland_select, plot(Tag_area, rate))
+			with(Data_mackerel_use_Ireland_select, plot(Release_timing, rate))
+			with(Data_mackerel_use_Ireland_select, plot(julian_recapture_std, rate))
+
+
 			m01 <- gam(log_rate ~ s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m02 <- gam(log_rate ~ s(length) + Category, family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m03 <- gam(log_rate ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m04 <- gam(log_rate ~ s(length) + s(lo, la) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m05 <- gam(log_rate ~ length + s(lo, la, by= Release_year) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m06 <- gam(log_rate ~ length + s(lo, la) + Release_year + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+			m07 <- gam(log_rate ~ length + s(lo, la) + Release_year + s(julian_recapture_std, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
 
 			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m1 <- gam(log_rate ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
@@ -356,10 +367,20 @@
 			m10 <- gam(log_rate ~ length + s(lo, la) + s(date, by=Release_year) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m11 <- gam(log_rate ~ length + s(lo, la) + s(date, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m12 <- gam(log_rate ~ length + s(lo, la, by=Release_year) + s(date, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
+			m13 <- gam(log_rate ~ length + s(lo, la, by=Release_year) + s(julian_recapture_std, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
+
+
+      library(glmmTMB)
+			m14 <- glmmTMB(rate ~ length + I(length^2) + Tag_area + Release_year + julian_recapture_std, family=gaussian, data=Data_mackerel_use_Ireland_select)
+			m15 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ I(julian_recapture_std), family=gaussian, data=Data_mackerel_use_Ireland_select)
+			m16 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ julian_recapture_std, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
+
+			m15b <- glmmTMB(rate ~ length + Tag_area*Release_timing + julian_recapture_std:Release_year, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
+			m16 <- glmmTMB(rate ~ length + Tag_area*Release_timing + julian_recapture_std, family=gaussian, data=Data_mackerel_use_Ireland_select)
 
 			AICtab(m1,m2,m3,m4,m5,m6,m7,m8,
-				   m0,m01,m02,m03,m04,m05,m10,m11,m12)
-			bestm <- m12
+				   m0,m01,m02,m03,m04,m05,m10,m11,m12,m13)
+			bestm <- m16
 			plot(bestm, all.terms=TRUE, residuals=TRUE, pages=1)
 			sim_select <- simulateResiduals(fittedModel = bestm, n = 1000, integerResponse = FALSE, plot=FALSE)
 			plot(sim_select, rank=T, quantreg = TRUE)
@@ -574,17 +595,18 @@
 			library(TMBhelper)
 
         # Choice of the design matrix
-        m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length:factor(Release_year)  + I(length^2):factor(Release_year), data=Data_mackerel_use_Ireland_select)
+        m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + I(log(length)) + I(log(length)^2) + julian_recapture_std, data=Data_mackerel_use_Ireland_select)
         m_frame <- model.frame(m1)
         XX <- model.matrix(m1, m_frame)
 
 
         # Choice of threshold values: Either the travel distance or the time of the year
         yyy <- Data_mackerel_use_Ireland_select$log_rate
+        Data_mackerel_use_Ireland_select$julian_release <-  as.numeric(julian(Data_mackerel_use_Ireland_select$relesedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
         Data_mackerel_use_Ireland_select$julian <-  as.numeric(julian(Data_mackerel_use_Ireland_select$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
         Data_mackerel_use_Ireland_select$julian_std <-  Data_mackerel_use_Ireland_select$julian %% 365
         yyy1 <- Data_mackerel_use_Ireland_select$julian_std
-        threshold_vals <-  as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.05)))
+        threshold_vals <- as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.05)))
         threshold_vals_group <- cut(Data_mackerel_use_Ireland_select$julian_std, c(0, threshold_vals, 365))
         threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
         threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
@@ -610,7 +632,7 @@
 								 Likconfig = 0      # 0 = dnorm, 1 = dgamma
 								 )
 
-				parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif(22*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+				parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
 									   log_sigma = rep(log(0.2),N_threshold)
 									   )
 
@@ -662,6 +684,7 @@
 					plot(Prediction, data_tmb$y); abline(0,1)
 					qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
 					abline(0,1, lty=2)
+
 
 					## Simulating observations
 					Nit = 10000
