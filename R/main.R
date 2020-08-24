@@ -88,8 +88,8 @@
 		Data_mackerel_all$NS_move <- as.numeric(pointDistance(matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$la),ncol=2), matrix(cbind(Data_mackerel_all$lo, Data_mackerel_all$cLat), ncol=2), lonlat=TRUE))
 
 	### Length bin
-		Data_mackerel_all$length_bin <- cut(Data_mackerel_all$length, breaks=c(0, 33, 38, 45))
-		Data_mackerel_all$length_bin  <- factor(Data_mackerel_all$length_bin, labels=c("(0,33cm]", "(33cm,38cm]", "(38cm,45cm]"))
+		Data_mackerel_all$length_bin <- cut(Data_mackerel_all$length, breaks=c(0, 34, 37, 45))
+		Data_mackerel_all$length_bin  <- factor(Data_mackerel_all$length_bin, labels=c("(0,34cm]", "(34cm,37cm]", "(37cm,45cm]"))
 
 	### Need to make some geographical division of the data
 		West_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(31:36, function(x) grep(x, unique(Data_mackerel_all$ices))))]
@@ -107,8 +107,8 @@
 		Data_mackerel_all$Tag_area <- as.factor(Data_mackerel_all$Tag_area)
 		Data_mackerel_all$Tag_area_large <- as.factor(Data_mackerel_all$Tag_area_large)
 
-		Data_mackerel_all$Release_timing <- ifelse(Data_mackerel_all$Release_monthday < "05_15", "Early", "Late")
-		Data_mackerel_all$Release_timing[which(Data_mackerel_all$Release_monthday >= "05_15" & Data_mackerel_all$Release_monthday <= "05_31")] <- "Mid"
+		Data_mackerel_all$Release_timing <- ifelse(Data_mackerel_all$Release_monthday < "05_22", "First_half", "Second_half")
+		#Data_mackerel_all$Release_timing[which(Data_mackerel_all$Release_monthday >= "05_16" & Data_mackerel_all$Release_monthday <= "05_26")] <- "Mid"
 
 		Data_mackerel_all$Category <- paste(Data_mackerel_all$Tag_area, Data_mackerel_all$Release_timing, sep="_")
 
@@ -418,10 +418,10 @@
 			ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area) + geom_hline(yintercept = mean_diff_tag_area+ 8.7)+ geom_hline(yintercept =  8.7)
 
 			brr <- subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland")
-			brr$col <- ifelse(brr$log_rate<9.1,"red", ifelse(brr$log_rate>9.7, "blue", "purple"))
+			brr$col <- ifelse(brr$log_rate<8.9,"red", ifelse(brr$log_rate>9.7, "blue", "purple"))
 			ggmap(map_area) + geom_point(data=brr, aes(x=cLon, y=cLat, col=col), size=1)
 			brr1 <- subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland")
-			brr1$col <- ifelse(brr1$log_rate<8.7,"red", "purple")
+			brr1$col <- ifelse(brr1$log_rate<(8.9-mean_diff_tag_area),"red", "purple")
 			ggmap(map_area) + geom_point(data=brr1, aes(x=cLon, y=cLat, col=col), size=1)
 
 			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="red"))
@@ -429,8 +429,6 @@
 			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="blue"))
 			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
 			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="purple"))
-			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
-			m0 <- gam(log_rate ~ length + s(lo, la), family=gaussian, data=subset(brr1, col=="purple"))
 			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
 
         ## This makes me think that I might need to develop a changepoint model (with K components)
@@ -447,7 +445,7 @@
 			yyy <- Data_mackerel_use_Ireland_select$log_rate
 			threshold_vals <-  as.numeric(quantile(yyy, seq(0.1, 0.9, by=0.05)))
 			threshold_vals_group <- cut(test$log_rate, c(0, threshold_vals, 100))
-			threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:18) ))
+			threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
 			threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
 			threshold_vals_group_end <- c(which(diff(threshold_vals_group, lag=1) == 1), length(threshold_vals_group))
 
@@ -575,7 +573,25 @@
 			library(TMB)
 			library(TMBhelper)
 
-			# A single change point model
+        # Choice of the design matrix
+        m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length:factor(Release_year)  + I(length^2):factor(Release_year), data=Data_mackerel_use_Ireland_select)
+        m_frame <- model.frame(m1)
+        XX <- model.matrix(m1, m_frame)
+
+
+        # Choice of threshold values: Either the travel distance or the time of the year
+        yyy <- Data_mackerel_use_Ireland_select$log_rate
+        Data_mackerel_use_Ireland_select$julian <-  as.numeric(julian(Data_mackerel_use_Ireland_select$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
+        Data_mackerel_use_Ireland_select$julian_std <-  Data_mackerel_use_Ireland_select$julian %% 365
+        yyy1 <- Data_mackerel_use_Ireland_select$julian_std
+        threshold_vals <-  as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.05)))
+        threshold_vals_group <- cut(Data_mackerel_use_Ireland_select$julian_std, c(0, threshold_vals, 365))
+        threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
+        threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
+        threshold_vals_group_end <- c(which(diff(threshold_vals_group, lag=1) == 1), length(threshold_vals_group))
+
+
+        # A single change point model
 
 				use_version <- paste0(getwd(), "/src/mackerel_mvt_model")
 				compile(paste0(use_version, ".cpp"))
@@ -589,11 +605,12 @@
 								 thresh=threshold_vals,
 								 mean_diff_tag_area= mean_diff_tag_area,
 								 is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+								 thres_cov = Data_mackerel_use_Ireland_select$julian_std,
 								 y = Data_mackerel_use_Ireland_select$log_rate,
-								 Likconfig = 1      # 0 = dnorm, 1 = dgamma
+								 Likconfig = 0      # 0 = dnorm, 1 = dgamma
 								 )
 
-				parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif(3*N_threshold,-2,2),runif(6*N_threshold,-0.05,0.05)),byrow=T, ncol=N_threshold),
+				parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif(22*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
 									   log_sigma = rep(log(0.2),N_threshold)
 									   )
 
@@ -620,37 +637,50 @@
 				mu_pred <- matrix(summary(sd_report_1break, "report")[,1], ncol=2, byrow=FALSE)
 
 				# Calculating the actual prediction
-					Likelihood <- matrix(NA, nrow=data_tmb$N, ncol=data_tmb$Nthres)
-					for (n in 1:data_tmb$N){
-						for (thr in 1:data_tmb$Nthres){
-							if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-								Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,1], sigma[1])
-							}
-							if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-								Likelihood[n,thr] = dnorm(data_tmb$y[n], mu_pred[n,2], sigma[2])
-							}
-						}
-					}
+				  LL <- obj1break$report()$LL
 
 				# The weighting factor is the average likelihood across the N datapoint per threshold value
-					weight <- apply(Likelihood, 2, mean)
+					weight <- apply(exp(LL), 2, mean)
 					weight <- weight/sum(weight)
 					plot(data_tmb$thresh, weight)
+#           weight <- rep(0,17)
+# 					weight[5]=1
+
 
 					Prediction <- rep(0, data_tmb$N)
 					for (n in 1:data_tmb$N){
-						for (thr in 1:data_tmb$Nthres){
-							if (data_tmb$y[n] < (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-								Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,1]
-							}
-							if (data_tmb$y[n] >= (data_tmb$thresh[thr]+data_tmb$is_from_west[n]*data_tmb$mean_diff_tag_area)){
-								Prediction[n] = Prediction[n]+weight[thr]*mu_pred[n,2]
-							}
-						}
+					  for (thr in 1:data_tmb$Nthres){
+					    if (data_tmb$thres_cov[n] < (data_tmb$thresh[thr])){
+					      Prediction[n] = Prediction[n] + weight[thr]*mu_pred[n,1]
+					    }
+					    if (data_tmb$thres_cov[n] >= (data_tmb$thresh[thr])){
+					      Prediction[n] = Prediction[n] + weight[thr]*mu_pred[n,2]
+					    }
+					  }
 					}
 
 					plot(Prediction, data_tmb$y); abline(0,1)
 					qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
+					abline(0,1, lty=2)
+
+					## Simulating observations
+					Nit = 10000
+					Prediction <- array(0, dim=c(data_tmb$N, data_tmb$Nthres, Nit))
+					for (n in 1:data_tmb$N){
+					   for (thr in 1:data_tmb$Nthres){
+						  if (data_tmb$thres_cov[n] < (data_tmb$thresh[thr])){
+						  	Prediction[n,thr,] = rnorm(Nit, mu_pred[n,1], sigma[1])
+						  }
+						  if (data_tmb$thres_cov[n] >= (data_tmb$thresh[thr])){
+							  Prediction[n,thr,] = rnorm(Nit, mu_pred[n,2], sigma[2])
+						  }
+					   }
+					}
+
+					Pred_val <- apply(Prediction, c(1,3), function(x) sum(weight*x))
+					Predict_val <- apply(Pred_val, 1, mean)
+					plot(Predict_val, data_tmb$y); abline(0,1)
+					qqnorm(y=(Predict_val-data_tmb$y)/sd(Predict_val-data_tmb$y))
 					abline(0,1, lty=2)
 
 				# Conclusion:
@@ -732,75 +762,8 @@
 
 ############ Some nice plots to look at mark recapture pattern
 
-  ## some quick investigation
-    Data_mackerel_all %>% subset(Release_year==2018 &
-                        Tag_area %in% c("West_Ireland", "North_Ireland")) %>%
-                        group_by(Tag_area) %>% dplyr::select(Tag_area, Release_monthday) %>% table()
-
-  ## Plot to investigate the location of recapture from Ireland, by year
-    plot_Yr <- function(Year)
-    {
-      dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
-      dat_release$Tag_area <- as.character(dat_release$Tag_area)
-      dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
-      dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
-      dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
-      dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
-      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
-
-      ncount_release <- dat_release %>% group_by(Tag_area) %>% count()
-      ncount_release$lon = c(-10, -14)
-      ncount_release$lat = c(57, 51)
-      ncount_release$label = paste0("n=", ncount_release$n)
-
-      ncount_recap <- dat_recap %>% group_by(Tag_area) %>% count()
-      ncount_recap$lon = c(-8, -8)
-      ncount_recap$lat = c(69, 70)
-      ncount_recap$label = paste0("n=", ncount_recap$n)
-
-      hull <- dat_recap %>% dplyr::select(Tag_area, cLon, cLat) %>% group_by(Tag_area) %>%  dplyr::slice(chull(cLon, cLat))
-      gravity <- hull %>% group_by(Tag_area) %>%
-        mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
-        dplyr::select(Tag_area, mean_lon, mean_lat) %>% dplyr::distinct()
-
-
-      g1 <- ggmap(map_area) + geom_point(data=subset(dat_release, Tag_area=="From W. Ireland"), aes(x=lo, y=la), size=0.3, col="red") +
-        geom_point(data=subset(dat_recap, Tag_area=="From W. Ireland"), aes(x=cLon, y=cLat), size=0.3, col="red") +
-        geom_text(data=subset(ncount_recap, Tag_area=="From W. Ireland"), aes(x=lon, y=lat, label=label), col="red") +
-        geom_text(data=subset(ncount_release, Tag_area=="From W. Ireland"), aes(x=lon, y=lat, label=label), col="red")  +
-        ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
-        geom_point(data=subset(dat_release, Tag_area=="From N. Ireland"), aes(x=lo, y=la), size=0.3, col="blue") +
-        geom_point(data=subset(dat_recap, Tag_area=="From N. Ireland"), aes(x=cLon, y=cLat), size=0.3, col="blue") +
-        geom_text(data=subset(ncount_recap, Tag_area=="From N. Ireland"), aes(x=lon, y=lat, label=label), col="blue") +
-        geom_text(data=subset(ncount_release, Tag_area=="From N. Ireland"), aes(x=lon, y=lat, label=label), col="blue") +
-        geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = factor(Tag_area))) +
-        scale_fill_manual(name = "Convex hull recapture", values=c("lightblue", "pink")) +
-        geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
-        geom_point(data=gravity, aes(x=mean_lon, y=mean_lat, col=Tag_area), shape=13, size=4) +
-        scale_color_manual(name = "Center of gravity", values=c("darkblue", "darkred"))
-
-      g1
-      return(g1)
-    }
-
-    ## 2011-2013, there is no recapture originating from both West and North side of Ireland
-    p2014 <- plot_Yr(2014)
-    p2015 <- plot_Yr(2015)
-    p2016 <- plot_Yr(2016)
-    p2017 <- plot_Yr(2017)
-    p2018 <- plot_Yr(2018)
-    p2019 <- plot_Yr(2019)
-
-    ggg <- arrangeGrob(p2014,p2015,p2016,p2017,p2018,p2019, nrow=3, ncol=2)
-    ggsave(ggg, filename=paste0("../plots/mark_recap_2014-2019.pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
-
-  #### Plot to investigate the location of recapture from Ireland, by year and
-  #### Time of release
-  #### To Determine if what matter is time of release or duration
-    plot_Yr_timerelease <- function(Year, lag=0)
+#### Ivestigate the effect of release region on the pattern of mackerel distribution
+    plot_region <- function(Year, lag=0)
     {
       dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
                                                     Tag_area %in% c("West_Ireland", "North_Ireland"))
@@ -813,39 +776,29 @@
       dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
       dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
       dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
-      # dat_recap <- dat_recap %>% mutate(Release_timing = ifelse(Release_monthday <= "5_14", "Early",
-                                                                # ifelse((Release_monthday <= "5_31" & Release_monthday >= "5_15"), "Mid", "Late")))
-
-      dat_recap$Release_timing <- ifelse(dat_recap$Release_monthday < "05_15", "Early", "Late")
-      dat_recap$Release_timing[which(dat_recap$Release_monthday >= "05_15" & dat_recap$Release_monthday <= "05_31")] <- "Mid"
 
       ncount_release <- dat_release %>% group_by(Tag_area) %>% count()
-      ncount_release$lon = c(-17.5, -17.5)
-      ncount_release$lat = c(56, 52)
+      ncount_release$lon = c(-30, -30)
+      ncount_release$lat = c(58, 56.5)
       ncount_release$label = paste0("n=", ncount_release$n)
 
       ncount_recap <- dat_recap %>% group_by(Tag_area) %>% count()
-      ncount_recap$lon = c(-8, -8)
-      ncount_recap$lat = c(69, 70)
+      ncount_recap$lon = c(-10, -10)
+      ncount_recap$lat = c(70, 69)
       ncount_recap$label = paste0("n=", ncount_recap$n)
 
-      dat_recap$Category <- paste(dat_recap$Tag_area, dat_recap$Release_timing, sep="_")
+      dat_recap$Category <- paste(dat_recap$Tag_area, sep="_")
 
       Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
       Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
       Select_catch <- subset(Select_catch, cLat<72)
       hull_catch <- Select_catch %>% dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat)
 
-      hull <- dat_recap %>% dplyr::select(Tag_area, Release_timing, cLon, cLat) %>% group_by(Tag_area, Release_timing) %>%  dplyr::slice(chull(cLon, cLat))
-      hull$Category <- paste(hull$Tag_area, hull$Release_timing, sep="_")
+      hull <- dat_recap %>% dplyr::select(Tag_area, cLon, cLat) %>% group_by(Tag_area) %>%  dplyr::slice(chull(cLon, cLat))
+      hull$Category <- paste(hull$Tag_area, sep="_")
       hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
-      #hull$Category <- as.factor(hull$Category)
-      #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
-      #                                                "From N. Ireland_Late", "From W. Ireland_Early",
-      #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
-      cats <- c("From N. Ireland_Early", "From N. Ireland_Mid",
-                "From N. Ireland_Late", "From W. Ireland_Early",
-                "From W. Ireland_Mid", "From W. Ireland_Late")
+
+      cats <- c("From N. Ireland", "From W. Ireland")
       gravity <- hull %>% group_by(Category) %>%
         mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
         dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
@@ -875,35 +828,31 @@
       area_category <- rep(NA, length(cats))
       names(area_category) <- cats
       area_category[match(names(area), names(area_category))] <- area
+      names(area_category) <- apply(cbind(cats, paste0("(n=", ncount_recap$n, ")")), 1, function(x) paste(x, collapse=" "))
 
-      prop_size <- dat_recap %>% group_by(Category,length_bin) %>% summarize(n=n()) %>% mutate(prop = prop.table(n)) %>% filter(n>1)
-      prop_size$r <- 1
-      Ngroups <- length(unique(prop_size$Category))
-      prop_size$lon <- -33
-      prop_size$lat <- as.factor(prop_size$Category)
-      prop_size$lat <- as.numeric(as.character(factor(prop_size$lat, labels=seq(58,56+2.5*length(levels(prop_size$lat)),by=2.5))))
-      prop_size_wide <- spread(prop_size[,-3], length_bin, prop)
-      prop_size_wide[is.na(prop_size_wide)] <- 0
+#
+#       prop_size <- dat_recap %>% group_by(Category,length_bin) %>% summarize(n=n()) %>% mutate(prop = prop.table(n)) %>% filter(n>1)
+#       prop_size$r <- 1
+#       Ngroups <- length(unique(prop_size$Category))
+#       prop_size$lon <- -33
+#       prop_size$lat <- as.factor(prop_size$Category)
+#       prop_size$lat <- as.numeric(as.character(factor(prop_size$lat, labels=seq(58,56+2.5*length(levels(prop_size$lat)),by=2.5))))
+#       prop_size_wide <- spread(prop_size[,-3], length_bin, prop)
+#       prop_size_wide[is.na(prop_size_wide)] <- 0
+#
+#       prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
 
-      prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
-
-      g1 <- ggmap(map_area) + geom_jitter(data=subset(dat_release, Tag_area=="From W. Ireland"), aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
-        geom_point(data=subset(dat_recap, Tag_area=="From W. Ireland"), aes(x=cLon, y=cLat), size=0.3, col="black") +
-        geom_jitter(data=subset(dat_release, Tag_area=="From N. Ireland"), aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
-        geom_text(data=subset(ncount_recap, Tag_area=="From W. Ireland"), aes(x=lon, y=lat, label=label), col="red") +
-        geom_text(data=subset(ncount_release, Tag_area=="From W. Ireland"), aes(x=lon, y=lat, label=label), col="red")  +
-        geom_text(data=subset(ncount_recap, Tag_area=="From N. Ireland"), aes(x=lon, y=lat, label=label), col="blue") +
-        geom_text(data=subset(ncount_release, Tag_area=="From N. Ireland"), aes(x=lon, y=lat, label=label), col="blue") +
+      g1 <- ggmap(map_area) + geom_jitter(data=dat_release, aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
+        geom_point(data=dat_recap, aes(x=cLon, y=cLat), size=0.3, col="black") +
         geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
+        scale_fill_manual(values = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)]) +
         scale_color_viridis_c() +
         geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
-        geom_text(data=data.frame(x=-25,y=54,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+        geom_text(data=data.frame(x=-26,y=60,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
         ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
-        geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) +
-        geom_scatterpie(aes(x=lon, y=lat, group = Category, r=r),
-                        data = prop_size_wide, cols = colnames(prop_size_wide[,-c(1:4)]))+
-        geom_text(data=prop_size_text, aes(x=lon, y=lat, label=label), size=2, hjust = 0)
-      g1
+        geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA)
+        g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)]) +
+          geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)])
 
       RES <- list()
       RES$plot <- g1
@@ -911,12 +860,11 @@
       return(RES)
     }
 
-    ## 2011-2013, there is no recapture originating from both West and North side of Ireland
-    Make_plot <- function(Years, lag){
+    Make_plot_region <- function(Years, lag){
       SAVE <- list()
       areas <- c()
       for (yr in seq_along(Years)){
-        SAVE[[yr]] <- plot_Yr_timerelease(Years[[yr]], lag=lag)
+        SAVE[[yr]] <- plot_region(Years[[yr]], lag=lag)
         areas <- rbind(areas, SAVE[[yr]][[2]])
       }
       areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
@@ -931,7 +879,7 @@
 
       ## Plotting
       ggg_timerelease <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
-      ggsave(ggg_timerelease, filename=paste0("../plots/mark_recap_release_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+      ggsave(ggg_timerelease, filename=paste0("../plots/mark_recap_region_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
 
       RES <- list()
       RES$areas <- areas.std
@@ -940,9 +888,599 @@
     }
 
     # no lag : same year to 2 years lag in recapture
-      (Area_lag0 <- Make_plot(Years=2014:2019, lag=0))
-      (Area_lag1 <- Make_plot(Years=2014:2018, lag=1))
-      (Area_lag2 <- Make_plot(Years=2014:2017, lag=2))
+    (Area_region_lag0 <- Make_plot_region(Years=2014:2019, lag=0))
+    (Area_region_lag1 <- Make_plot_region(Years=2014:2018, lag=1))
+    (Area_region_lag2 <- Make_plot_region(Years=2014:2017, lag=2))
+
+
+#### Ivestigate the effect of release timing on the pattern of mackerel distribution
+    plot_timerelease <- function(Year, lag=0)
+    {
+      dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
+                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+      dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
+      dat_release$Tag_area <- as.character(dat_release$Tag_area)
+      dat_release$Tag_area <- as.factor(dat_release$Tag_area)
+      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
+                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+      dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
+      dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
+      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+
+      ncount_release <- dat_release %>% group_by(Release_timing) %>% count()
+      ncount_release$lon = c(-30, -30)
+      ncount_release$lat = c(58, 56.5)
+      ncount_release$label = paste0("n=", ncount_release$n)
+
+      ncount_recap <- dat_recap %>% group_by(Release_timing) %>% count()
+      ncount_recap$lon = c(-10,-10)
+      ncount_recap$lat = c(70, 69)
+      ncount_recap$label = paste0("n=", ncount_recap$n)
+
+      dat_recap$Category <- paste(dat_recap$Release_timing, sep="_")
+
+      Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
+      Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
+      Select_catch <- subset(Select_catch, cLat<72)
+      hull_catch <- Select_catch %>% dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat)
+
+      hull <- dat_recap %>% dplyr::select(Release_timing, cLon, cLat) %>% group_by(Release_timing) %>%  dplyr::slice(chull(cLon, cLat))
+      hull$Category <- paste(hull$Release_timing, sep="_")
+      hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
+      #hull$Category <- as.factor(hull$Category)
+      #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
+      #                                                "From N. Ireland_Late", "From W. Ireland_Early",
+      #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+      cats <- c("First_half", "Second_half")
+      gravity <- hull %>% group_by(Category) %>%
+        mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
+        dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
+      hull_new <- as.data.frame(hull)
+      coordinates(hull_new) <- c("cLon", "cLat")
+      crs(hull_new) <- "+proj=longlat +datum=WGS84"
+      new_proj <- "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs"
+      hull_new <- spTransform(hull_new, new_proj)
+      hull_new <- as.data.frame(hull_new)
+      hull_new1 <- hull_new
+      Vertex_nb <- table(hull_new$Category)
+      to_add <- which(Vertex_nb==3)
+      to_remove <- which(Vertex_nb<3)
+      if (length(to_add)>0){
+        for (i in seq_along(to_add)){
+          test <- subset(hull_new1, Category==unique(hull_new1$Category)[to_add[i]])
+          test[4,] <- test[1,]
+          hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_add[i]])
+          hull_new <- rbind(hull_new, test)
+        }
+      }
+      if (length(to_remove)>0){
+        for (i in seq_along(to_remove)){
+          hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_remove[i]])
+        }
+      }
+      area <- sapply(unique(hull_new$Category), function(x) Polygon(subset(hull_new, Category==x)[,c('cLon','cLat')])@area)
+      area_category <- rep(NA, length(cats))
+      names(area_category) <- cats
+      area_category[match(names(area), names(area_category))] <- area
+      names(area_category) <- apply(cbind(cats, paste0("(n=", ncount_recap$n, ")")), 1, function(x) paste(x, collapse=" "))
+
+      # prop_size <- dat_recap %>% group_by(Category,length_bin) %>% summarize(n=n()) %>% mutate(prop = prop.table(n)) %>% filter(n>1)
+      # prop_size$r <- 1
+      # Ngroups <- length(unique(prop_size$Category))
+      # prop_size$lon <- -33
+      # prop_size$lat <- as.factor(prop_size$Category)
+      # prop_size$lat <- as.numeric(as.character(factor(prop_size$lat, labels=seq(58,56+2.5*length(levels(prop_size$lat)),by=2.5))))
+      # prop_size_wide <- spread(prop_size[,-3], length_bin, prop)
+      # prop_size_wide[is.na(prop_size_wide)] <- 0
+      #
+      # prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
+
+      g1 <- ggmap(map_area) + geom_jitter(data=dat_release, aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
+        geom_point(data=dat_recap, aes(x=cLon, y=cLat), size=0.3, col="black") +
+        geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
+        scale_fill_manual(values = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)]) +
+        scale_color_viridis_c() +
+        geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+        geom_text(data=data.frame(x=-26,y=60,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+        ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
+        geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
+      # geom_scatterpie(aes(x=lon, y=lat, group = Category, r=r),
+      #                data = prop_size_wide, cols = colnames(prop_size_wide[,-c(1:4)]))+
+      # geom_text(data=prop_size_text, aes(x=lon, y=lat, label=label), size=2, hjust = 0)
+      g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)]) +
+        geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)])
+
+      RES <- list()
+      RES$plot <- g1
+      RES$area <- area_category
+      return(RES)
+    }
+
+    Make_plot_timing <- function(Years, lag){
+      SAVE <- list()
+      areas <- c()
+      for (yr in seq_along(Years)){
+        SAVE[[yr]] <- plot_timerelease(Years[[yr]], lag=lag)
+        areas <- rbind(areas, SAVE[[yr]][[2]])
+      }
+      areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
+      colnames(areas.std) <- Years
+
+      areas_df <- reshape2::melt(areas.std, value.name="Size_area")
+      colnames(areas_df) <- c("Time_release", "Year", "Size_area")
+      areas_df$Year <- as.factor(areas_df$Year)
+      areas_df$Time_release <- as.factor(areas_df$Time_release)
+
+      lm1 <- (lm(Size_area ~ Time_release + Year, areas_df))
+
+      ## Plotting
+      ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+      ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_timing_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+
+      RES <- list()
+      RES$areas <- areas.std
+      RES$areas.lm <- lm1
+      return(RES)
+    }
+
+    # no lag : same year to 2 years lag in recapture
+      (Area_timing_lag0 <- Make_plot_timing(Years=2014:2019, lag=0))
+      (Area_timing_lag1 <- Make_plot_timing(Years=2014:2018, lag=1))
+      (Area_timing_lag2 <- Make_plot_timing(Years=2014:2017, lag=2))
+
+      summary(Area_timing_lag0[[2]])
+      summary(Area_timing_lag1[[2]])
+      summary(Area_timing_lag2[[2]])
+
+
+#### Ivestigate the effect of fish size on the pattern of mackerel distribution
+    plot_fishsize <- function(Year, lag=0)
+    {
+      dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
+                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+      dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
+      dat_release$Tag_area <- as.character(dat_release$Tag_area)
+      dat_release$Tag_area <- as.factor(dat_release$Tag_area)
+      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
+                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+      dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
+      dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
+      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+
+      ncount_release <- dat_release %>% group_by(length_bin) %>% count()
+      ncount_release$lon = c(-32, -32, -32)
+      ncount_release$lat = c(58, 56.5, 55)
+      ncount_release$label = paste0("n=", ncount_release$n)
+
+      ncount_recap <- dat_recap %>% group_by(length_bin) %>% count()
+      ncount_recap$lon = c(-10, -10,-10)
+      ncount_recap$lat = c(70, 69, 68)
+      ncount_recap$label = paste0("n=", ncount_recap$n)
+
+      dat_recap$Category <- paste(dat_recap$length_bin, sep="_")
+
+      Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
+      Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
+      Select_catch <- subset(Select_catch, cLat<72)
+      hull_catch <- Select_catch %>% dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat)
+
+      hull <- dat_recap %>% dplyr::select(length_bin, cLon, cLat) %>% group_by(length_bin) %>%  dplyr::slice(chull(cLon, cLat))
+      hull$Category <- paste(hull$length_bin, sep="_")
+      hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
+      #hull$Category <- as.factor(hull$Category)
+      #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
+      #                                                "From N. Ireland_Late", "From W. Ireland_Early",
+      #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+      cats <- c("(0,34cm]", "(34cm,37cm]","(37cm,45cm]")
+      gravity <- hull %>% group_by(Category) %>%
+        mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
+        dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
+      hull_new <- as.data.frame(hull)
+      coordinates(hull_new) <- c("cLon", "cLat")
+      crs(hull_new) <- "+proj=longlat +datum=WGS84"
+      new_proj <- "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs"
+      hull_new <- spTransform(hull_new, new_proj)
+      hull_new <- as.data.frame(hull_new)
+      hull_new1 <- hull_new
+      Vertex_nb <- table(hull_new$Category)
+      to_add <- which(Vertex_nb==3)
+      to_remove <- which(Vertex_nb<3)
+      if (length(to_add)>0){
+        for (i in seq_along(to_add)){
+          test <- subset(hull_new1, Category==unique(hull_new1$Category)[to_add[i]])
+          test[4,] <- test[1,]
+          hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_add[i]])
+          hull_new <- rbind(hull_new, test)
+        }
+      }
+      if (length(to_remove)>0){
+        for (i in seq_along(to_remove)){
+          hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_remove[i]])
+        }
+      }
+      area <- sapply(unique(hull_new$Category), function(x) Polygon(subset(hull_new, Category==x)[,c('cLon','cLat')])@area)
+      area_category <- rep(NA, length(cats))
+      names(area_category) <- cats
+      area_category[match(names(area), names(area_category))] <- area
+      names(area_category) <- apply(cbind(cats, paste0("(n=", ncount_recap$n, ")")), 1, function(x) paste(x, collapse=" "))
+
+      # prop_size <- dat_recap %>% group_by(Category,length_bin) %>% summarize(n=n()) %>% mutate(prop = prop.table(n)) %>% filter(n>1)
+      # prop_size$r <- 1
+      # Ngroups <- length(unique(prop_size$Category))
+      # prop_size$lon <- -33
+      # prop_size$lat <- as.factor(prop_size$Category)
+      # prop_size$lat <- as.numeric(as.character(factor(prop_size$lat, labels=seq(58,56+2.5*length(levels(prop_size$lat)),by=2.5))))
+      # prop_size_wide <- spread(prop_size[,-3], length_bin, prop)
+      # prop_size_wide[is.na(prop_size_wide)] <- 0
+      #
+      # prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
+
+      g1 <- ggmap(map_area) + geom_jitter(data=dat_release, aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
+        geom_point(data=dat_recap, aes(x=cLon, y=cLat), size=0.3, col="black") +
+        geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
+        scale_fill_manual(values = RColorBrewer::brewer.pal(3, "Set1")[1:3]) +
+        scale_color_viridis_c() +
+        geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+        geom_text(data=data.frame(x=-25,y=60,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+        ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
+        geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
+      # geom_scatterpie(aes(x=lon, y=lat, group = Category, r=r),
+      #                data = prop_size_wide, cols = colnames(prop_size_wide[,-c(1:4)]))+
+      # geom_text(data=prop_size_text, aes(x=lon, y=lat, label=label), size=2, hjust = 0)
+        g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[1:3]) +
+        geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[1:3])
+
+      RES <- list()
+      RES$plot <- g1
+      RES$area <- area_category
+      return(RES)
+    }
+
+    Make_plot_fishsize <- function(Years, lag){
+      SAVE <- list()
+      areas <- c()
+      for (yr in seq_along(Years)){
+        SAVE[[yr]] <- plot_fishsize(Years[[yr]], lag=lag)
+        areas <- rbind(areas, SAVE[[yr]][[2]])
+      }
+      areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
+      colnames(areas.std) <- Years
+
+      areas_df <- reshape2::melt(areas.std, value.name="Size_area")
+      colnames(areas_df) <- c("Fish_size", "Year", "Size_area")
+      areas_df$Year <- as.factor(areas_df$Year)
+      areas_df$Fish_size <- as.factor(areas_df$Fish_size)
+
+      lm1 <- (lm(Size_area ~ Fish_size + Year, areas_df))
+
+      ## Plotting
+      ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+      ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_size_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+
+      RES <- list()
+      RES$areas <- areas.std
+      RES$areas.lm <- lm1
+      return(RES)
+    }
+
+    # no lag : same year to 2 years lag in recapture
+      (Area_fishsize_lag0 <- Make_plot_fishsize(Years=2014:2019, lag=0))
+      (Area_fishsize_lag1 <- Make_plot_fishsize(Years=2014:2018, lag=1))
+      (Area_fishsize_lag2 <- Make_plot_fishsize(Years=2014:2017, lag=2))
+
+      summary(Area_fishsize_lag0[[2]])
+      summary(Area_fishsize_lag1[[2]])
+      summary(Area_fishsize_lag2[[2]])
+
+
+#### Plot to investigate the location of recapture from Ireland, by year, time of release, region and fish size
+     plot_region_timerelease <- function(Year, lag=0)
+     {
+        dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
+                                                      Tag_area %in% c("West_Ireland", "North_Ireland"))
+        dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
+        dat_release$Tag_area <- as.character(dat_release$Tag_area)
+        dat_release$Tag_area <- as.factor(dat_release$Tag_area)
+        dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+        dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
+                                                      Tag_area %in% c("West_Ireland", "North_Ireland"))
+        dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
+        dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
+        dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+        # dat_recap <- dat_recap %>% mutate(Release_timing = ifelse(Release_monthday <= "5_14", "Early",
+        # ifelse((Release_monthday <= "5_31" & Release_monthday >= "5_15"), "Mid", "Late")))
+
+        dat_release$Category <- paste(dat_release$Tag_area, dat_release$Release_timing, sep="_")
+        dat_recap$Category <- paste(dat_recap$Tag_area, dat_recap$Release_timing, sep="_")
+
+        ncount_recap <- dat_recap %>% group_by(Category) %>% count()
+        morethan3 <- which(ncount_recap$n >= 3)
+        ncount_recap <- ncount_recap[morethan3,]
+        ncount_recap$lon = rep(-10,nrow(ncount_recap))
+        ncount_recap$lat = seq(70,(70-(nrow(ncount_recap)-1)), by=-1)
+        ncount_recap$label = paste0("n=", ncount_recap$n)
+
+        ncount_release <- dat_release %>% group_by(Category) %>% count()
+        morethan3 <- match(ncount_recap$Category, ncount_release$Category)
+        ncount_release <- ncount_release[morethan3,]
+        ncount_release$lon = rep(-32,nrow(ncount_release))
+        ncount_release$lat = seq(58,(58-1.5*(nrow(ncount_release)-1)), by=-1.5)
+        ncount_release$label = paste0("n=", ncount_release$n)
+
+        Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
+        Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
+        Select_catch <- subset(Select_catch, cLat<72)
+        hull_catch <- Select_catch %>% dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat)
+
+        hull <- dat_recap %>% dplyr::select(Tag_area, Release_timing, cLon, cLat) %>% group_by(Tag_area, Release_timing) %>%  dplyr::slice(chull(cLon, cLat))
+        hull$Category <- paste(hull$Tag_area, hull$Release_timing, sep="_")
+        hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
+        #hull$Category <- as.factor(hull$Category)
+        #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
+        #                                                "From N. Ireland_Late", "From W. Ireland_Early",
+        #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+        cats <- c("From N. Ireland_First_half", "From N. Ireland_Second_half",
+                  "From W. Ireland_First_half", "From W. Ireland_Second_half")
+        gravity <- hull %>% group_by(Category) %>%
+          mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
+          dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
+        hull_new <- as.data.frame(hull)
+        coordinates(hull_new) <- c("cLon", "cLat")
+        crs(hull_new) <- "+proj=longlat +datum=WGS84"
+        new_proj <- "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs"
+        hull_new <- spTransform(hull_new, new_proj)
+        hull_new <- as.data.frame(hull_new)
+        hull_new1 <- hull_new
+        Vertex_nb <- table(hull_new$Category)
+        to_add <- which(Vertex_nb==3)
+        to_remove <- which(Vertex_nb<3)
+        if (length(to_add)>0){
+          for (i in seq_along(to_add)){
+            test <- subset(hull_new1, Category==unique(hull_new1$Category)[to_add[i]])
+            test[4,] <- test[1,]
+            hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_add[i]])
+            hull_new <- rbind(hull_new, test)
+          }
+        }
+        if (length(to_remove)>0){
+          for (i in seq_along(to_remove)){
+            hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_remove[i]])
+          }
+        }
+        area <- sapply(unique(hull_new$Category), function(x) Polygon(subset(hull_new, Category==x)[,c('cLon','cLat')])@area)
+        area_category <- rep(NA, length(cats))
+        names(area_category) <- cats
+        area_category[match(names(area), names(area_category))] <- area
+
+        # prop_size <- dat_recap %>% group_by(Category,length_bin) %>% summarize(n=n()) %>% mutate(prop = prop.table(n)) %>% filter(n>1)
+        # prop_size$r <- 1
+        # Ngroups <- length(unique(prop_size$Category))
+        # prop_size$lon <- -33
+        # prop_size$lat <- as.factor(prop_size$Category)
+        # prop_size$lat <- as.numeric(as.character(factor(prop_size$lat, labels=seq(58,56+2.5*length(levels(prop_size$lat)),by=2.5))))
+        # prop_size_wide <- spread(prop_size[,-3], length_bin, prop)
+        # prop_size_wide[is.na(prop_size_wide)] <- 0
+        #
+        # prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
+
+        g1 <- ggmap(map_area) + geom_jitter(data=dat_release, aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
+          geom_point(data=dat_recap, aes(x=cLon, y=cLat), size=0.3, col="black") +
+          geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
+          scale_fill_manual(values = RColorBrewer::brewer.pal(4, "Set1")[1:nrow(ncount_release)]) +
+          scale_color_viridis_c() +
+          geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+          geom_text(data=data.frame(x=-25,y=60,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+          ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
+          geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
+        # geom_scatterpie(aes(x=lon, y=lat, group = Category, r=r),
+        #                data = prop_size_wide, cols = colnames(prop_size_wide[,-c(1:4)]))+
+        # geom_text(data=prop_size_text, aes(x=lon, y=lat, label=label), size=2, hjust = 0)
+        g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(4, "Set1")[1:nrow(ncount_release)]) +
+          geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(4, "Set1")[1:nrow(ncount_release)])
+
+        RES <- list()
+        RES$plot <- g1
+        RES$area <- area_category
+        return(RES)
+      }
+
+     Make_plot_region_timerelease <- function(Years, lag){
+        SAVE <- list()
+        areas <- c()
+        for (yr in seq_along(Years)){
+          SAVE[[yr]] <- plot_region_timerelease(Years[[yr]], lag=lag)
+          areas <- rbind(areas, SAVE[[yr]][[2]])
+        }
+        areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
+        colnames(areas.std) <- Years
+
+        areas_df <- reshape2::melt(areas.std, value.name="Size_area")
+        colnames(areas_df) <- c("Category", "Year", "Size_area")
+        areas_df$Year <- as.factor(areas_df$Year)
+        areas_df$Category <- as.factor(areas_df$Category)
+
+        lm1 <- (lm(Size_area ~ Category + Year, areas_df))
+
+        ## Plotting
+        ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+        ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_region_timing_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+
+        RES <- list()
+        RES$areas <- areas.std
+        RES$areas.lm <- lm1
+        return(RES)
+      }
+     # no lag : same year to 2 years lag in recapture
+     (Area_region_timing_lag0 <- Make_plot_region_timerelease(Years=2014:2019, lag=0))
+     (Area_region_timing_lag1 <- Make_plot_region_timerelease(Years=2014:2018, lag=1))
+     (Area_region_timing_lag2 <- Make_plot_region_timerelease(Years=2014:2017, lag=2))
+     summary(Area_region_timing_lag0[[2]])
+     summary(Area_region_timing_lag1[[2]])
+     summary(Area_region_timing_lag2[[2]])
+
+
+#### Plot to investigate the location of recapture from Ireland, by year, time of release, region and fish size
+     plot_region_time_size <- function(Year, lag=0)
+     {
+       dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
+                                                     Tag_area %in% c("West_Ireland", "North_Ireland"))
+       dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
+       dat_release$Tag_area <- as.character(dat_release$Tag_area)
+       dat_release$Tag_area <- as.factor(dat_release$Tag_area)
+       dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+       dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
+                                                     Tag_area %in% c("West_Ireland", "North_Ireland"))
+       dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
+       dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
+       dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+       # dat_recap <- dat_recap %>% mutate(Release_timing = ifelse(Release_monthday <= "5_14", "Early",
+       # ifelse((Release_monthday <= "5_31" & Release_monthday >= "5_15"), "Mid", "Late")))
+
+       dat_release$Category <- paste(dat_release$Tag_area, dat_release$Release_timing, dat_release$length_bin, sep="_")
+       dat_recap$Category <- paste(dat_recap$Tag_area, dat_recap$Release_timing, dat_recap$length_bin, sep="_")
+
+       ncount_recap <- dat_recap %>% group_by(Category) %>% count()
+       morethan3 <- which(ncount_recap$n >= 3)
+       ncount_recap <- ncount_recap[morethan3,]
+       if (nrow(ncount_recap) <4) ncount_recap$lon = rep(-10,nrow(ncount_recap))
+       if (nrow(ncount_recap) >=4 & nrow(ncount_recap) <8) ncount_recap$lon = c(rep(-13,4),rep(-5,nrow(ncount_recap)%%4))
+       if (nrow(ncount_recap) >=8) ncount_recap$lon = c(rep(-14,4),rep(-6, 4), rep(2,nrow(ncount_recap)%%4))
+       if (nrow(ncount_recap) <4) ncount_recap$lat = seq(70,(70-(nrow(ncount_recap)-1)), by=-1)
+       if (nrow(ncount_recap) >=4 & nrow(ncount_recap) <8) ncount_recap$lat = c(70:67, seq(70,(70-(nrow(ncount_recap)%%4-1)), by=-1))
+       if (nrow(ncount_recap) ==8) ncount_recap$lat = c(70:67, 70:67)
+       if (nrow(ncount_recap) >=9) ncount_recap$lat = c(70:67, 70:67, seq(70,(70-(nrow(ncount_recap)%%4-1)), by=-1))
+       ncount_recap$label = paste0("n=", ncount_recap$n)
+
+       ncount_release <- dat_release %>% group_by(Category) %>% count()
+       morethan3 <- match(ncount_recap$Category, ncount_release$Category)
+       ncount_release <- ncount_release[morethan3,]
+       if (nrow(ncount_release) <5) ncount_release$lon = rep(-35,nrow(ncount_release))
+       if (nrow(ncount_release) >=5 & nrow(ncount_release) <10) ncount_release$lon = c(rep(-35,5),rep(-24,nrow(ncount_release)%%5))
+       if (nrow(ncount_release) >=10) ncount_release$lon = c(rep(-35,5),rep(-24,5), rep(-14,nrow(ncount_release)%%5))
+       if (nrow(ncount_release) <5) ncount_release$lat = seq(58,(58-1.5*(nrow(ncount_release)-1)), by=-1.5)
+       if (nrow(ncount_release) >=5 & nrow(ncount_release) <10) ncount_release$lat = c(seq(58,52,by=-1.5), seq(58,(58-1.5*(nrow(ncount_release)%%5-1)), by=-1.5))
+       if (nrow(ncount_release) ==10) ncount_release$lat = c(seq(58,52,by=-1.5), seq(58,52,by=-1.5))
+       if (nrow(ncount_release) >=11) ncount_release$lat = c(seq(58,52,by=-1.5), seq(58,52,by=-1.5), seq(58,(58-1.5*(nrow(ncount_release)%%5-1)), by=-1.5))
+       ncount_release$label = paste0("n=", ncount_release$n)
+
+       Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
+       Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
+       Select_catch <- subset(Select_catch, cLat<72)
+       hull_catch <- Select_catch %>% dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat)
+
+       hull <- dat_recap %>% dplyr::select(Tag_area, Release_timing, length_bin, cLon, cLat) %>% group_by(Tag_area, Release_timing, length_bin) %>%  dplyr::slice(chull(cLon, cLat))
+       hull$Category <- paste(hull$Tag_area, hull$Release_timing, hull$length_bin, sep="_")
+       hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
+       #hull$Category <- as.factor(hull$Category)
+       #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
+       #                                                "From N. Ireland_Late", "From W. Ireland_Early",
+       #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+       cats <- c("From N. Ireland_First_half", "From N. Ireland_Second_half",
+                 "From W. Ireland_First_half", "From W. Ireland_Second_half")
+       size <- levels(Data_mackerel_use_Ireland_select$length_bin)
+       cats <- expand.grid(cats, size)
+       cats <- apply(cats, 1, function(x) paste(x, collapse="_"))
+       gravity <- hull %>% group_by(Category) %>%
+         mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
+         dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
+       hull_new <- as.data.frame(hull)
+       coordinates(hull_new) <- c("cLon", "cLat")
+       crs(hull_new) <- "+proj=longlat +datum=WGS84"
+       new_proj <- "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs"
+       hull_new <- spTransform(hull_new, new_proj)
+       hull_new <- as.data.frame(hull_new)
+       hull_new1 <- hull_new
+       Vertex_nb <- table(hull_new$Category)
+       to_add <- which(Vertex_nb==3)
+       to_remove <- which(Vertex_nb<3)
+       if (length(to_add)>0){
+         for (i in seq_along(to_add)){
+           test <- subset(hull_new1, Category==unique(hull_new1$Category)[to_add[i]])
+           test[4,] <- test[1,]
+           hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_add[i]])
+           hull_new <- rbind(hull_new, test)
+         }
+       }
+       if (length(to_remove)>0){
+         for (i in seq_along(to_remove)){
+           hull_new <- subset(hull_new, Category!=unique(hull_new$Category)[to_remove[i]])
+         }
+       }
+       area <- sapply(unique(hull_new$Category), function(x) Polygon(subset(hull_new, Category==x)[,c('cLon','cLat')])@area)
+       area_category <- rep(NA, length(cats))
+       names(area_category) <- cats
+       area_category[match(names(area), names(area_category))] <- area
+
+       # prop_size <- dat_recap %>% group_by(Category,length_bin) %>% summarize(n=n()) %>% mutate(prop = prop.table(n)) %>% filter(n>1)
+       # prop_size$r <- 1
+       # Ngroups <- length(unique(prop_size$Category))
+       # prop_size$lon <- -33
+       # prop_size$lat <- as.factor(prop_size$Category)
+       # prop_size$lat <- as.numeric(as.character(factor(prop_size$lat, labels=seq(58,56+2.5*length(levels(prop_size$lat)),by=2.5))))
+       # prop_size_wide <- spread(prop_size[,-3], length_bin, prop)
+       # prop_size_wide[is.na(prop_size_wide)] <- 0
+       #
+       # prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
+
+       g1 <- ggmap(map_area) + geom_jitter(data=dat_release, aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
+         geom_point(data=dat_recap, aes(x=cLon, y=cLat), size=0.3, col="black") +
+         geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
+         scale_fill_manual(values = RColorBrewer::brewer.pal(12, "Set3")[1:nrow(ncount_release)]) +
+         scale_color_viridis_c() +
+         geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+         geom_text(data=data.frame(x=-25,y=60,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+         ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
+         geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
+       # geom_scatterpie(aes(x=lon, y=lat, group = Category, r=r),
+       #                data = prop_size_wide, cols = colnames(prop_size_wide[,-c(1:4)]))+
+       # geom_text(data=prop_size_text, aes(x=lon, y=lat, label=label), size=2, hjust = 0)
+       g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(12, "Set3")[1:nrow(ncount_release)]) +
+         geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(12, "Set3")[1:nrow(ncount_release)])
+
+       RES <- list()
+       RES$plot <- g1
+       RES$area <- area_category
+       return(RES)
+     }
+
+     Make_plot_region_time_size <- function(Years, lag){
+       SAVE <- list()
+       areas <- c()
+       for (yr in seq_along(Years)){
+         SAVE[[yr]] <- plot_region_time_size(Years[[yr]], lag=lag)
+         areas <- rbind(areas, SAVE[[yr]][[2]])
+       }
+       areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
+       colnames(areas.std) <- Years
+
+       areas_df <- reshape2::melt(areas.std, value.name="Size_area")
+       colnames(areas_df) <- c("Category", "Year", "Size_area")
+       areas_df$Year <- as.factor(areas_df$Year)
+       areas_df$Category <- as.factor(areas_df$Category)
+
+       lm1 <- (lm(Size_area ~ Category + Year, areas_df))
+
+       ## Plotting
+       ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+       ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_region_timing_size_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+
+       RES <- list()
+       RES$areas <- areas.std
+       RES$areas.lm <- lm1
+       return(RES)
+     }
+
+     # no lag : same year to 2 years lag in recapture
+     (Area_region_time_size_lag0 <- Make_plot_region_time_size(Years=2014:2019, lag=0))
+     (Area_region_time_size_lag1 <- Make_plot_region_time_size(Years=2014:2018, lag=1))
+     (Area_region_time_size_lag2 <- Make_plot_region_time_size(Years=2014:2017, lag=2))
+     summary(Area_region_time_size_lag0[[2]])
+     summary(Area_region_time_size_lag1[[2]])
+     summary(Area_region_time_size_lag2[[2]])
+
+
 
 
   ### Plot to investigate the location of recapture from Ireland, by year and
