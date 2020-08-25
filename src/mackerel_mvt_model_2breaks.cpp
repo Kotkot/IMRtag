@@ -23,7 +23,9 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(thresh);
   DATA_SCALAR(mean_diff_tag_area);
   DATA_VECTOR(is_from_west);
+  DATA_VECTOR(thres_cov);                  		  //  response
   DATA_VECTOR(y);                  		  //  response
+  DATA_INTEGER(Likconfig);
 
   // Parameters
   PARAMETER_MATRIX(beta);
@@ -38,51 +40,82 @@ Type objective_function<Type>::operator() ()
 
   // Define mu
   for(int j=0;j<K;j++){
-	mu.col(j)=X*beta.col(j);
+    // for (int i=0;i<N;i++){
+    mu.col(j)=X*beta.col(j);
+    // vector<Type> temp1=X.row(i);
+    // vector<Type> temp2=beta.col(j);
+    //  mu(i,j)=(temp1*temp2).sum();
+    //  }
+  }
+
+  // Define the gamma parameters (when needed)
+  matrix<Type> shape(N,K);
+  matrix<Type> scale(N,K);
+  for(int j=0;j<K;j++){
+    for (int n=0;n<N;n++){
+      shape(n,j)= pow(mu(n,j),2)/pow(sigma(j),2);
+      scale(n,j)= pow(sigma(j),2)/mu(n,j);
+    }
   }
 
   // vector<Type> lp_e(Nthres+1);
   // vector<Type> lp_l(Nthres+1);
+  array<Type> LL(N,Nthres,Nthres);
+  LL.fill(0.0);
 
-    // for (int n=thresh_start(0);n<thresh_end(0);n++){	// for all observations below the first threshold
-      // lp_e(0) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
-      // lp_l(0) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
-    // }  // Now define the mean travel distance for each mixture component
+  // for (int n=thresh_start(0);n<thresh_end(0);n++){	// for all observations below the first threshold
+  // lp_e(0) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
+  // lp_l(0) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
+  // }  // Now define the mean travel distance for each mixture component
 
-    // for (int t=0;t<Nthres;t++){
-      // lp_e(t+1) = lp_e(t);
-      // lp_l(t+1) = lp_l(t);
-      // for (int n=thresh_start(t+1);n<thresh_end(t+1);n++){ 	  // for all observations between threshold [t,t+1[
-        // lp_e(t + 1) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
-        // lp_l(t + 1) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
-      // }  // Now define the mean travel distance for each mixture component
-    // }
-  
-    // for (int i=0;i<Nthres;i++){
-	// nll -= lp_l(Nthres + 1) + lp_e(i) - lp_l(i);
-	// }
-	
+  // for (int t=0;t<Nthres;t++){
+  // lp_e(t+1) = lp_e(t);
+  // lp_l(t+1) = lp_l(t);
+  // for (int n=thresh_start(t+1);n<thresh_end(t+1);n++){ 	  // for all observations between threshold [t,t+1[
+  // lp_e(t + 1) += dnorm(y(n), mu(n,0), sigma(0), TRUE);  // before thr1
+  // lp_l(t + 1) += dnorm(y(n), mu(n,1), sigma(1), TRUE);  // after thr2
+  // }  // Now define the mean travel distance for each mixture component
+  // }
+
+  // for (int i=0;i<Nthres;i++){
+  // nll -= lp_l(Nthres + 1) + lp_e(i) - lp_l(i);
+  // }
+
   for (int thr=0;thr<(Nthres-1);thr++) {
-	for (int thr2=(thr+1);thr2<Nthres;thr2++) {
-		for (int n=0;n<N;n++){
-			if (y(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-				nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);
-			}
-			if ((y(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)) & (y(n) < (thresh(thr2)+is_from_west(n)*mean_diff_tag_area))){
-				nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
-			}
-			if (y(n) >= (thresh(thr2)+is_from_west(n)*mean_diff_tag_area)){
-				nll -= dnorm(y(n), mu(n,2), sigma(2), TRUE);
-			}
-		}
-	}	
+    for (int thr2=(thr+1);thr2<Nthres;thr2++) {
+      for (int n=0;n<N;n++){
+        // if (thres_cov(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+        if (thres_cov(n) < thresh(thr)){
+          if (Likconfig ==0){
+            nll -= dnorm(y(n), mu(n,0), sigma(0), TRUE);
+            LL(n,thr,thr2)=dnorm(y(n), mu(n,0), sigma(0), TRUE);
+          }
+        }
+        // if ((thres_cov(n) >= (thresh(thr)+is_from_west(n)*mean_diff_tag_area)) & (thres_cov(n) < (thresh(thr2)+is_from_west(n)*mean_diff_tag_area))){
+        if ((thres_cov(n) >= thresh(thr)) & (thres_cov(n) < thresh(thr2))){
+          if (Likconfig ==0){
+            nll -= dnorm(y(n), mu(n,1), sigma(1), TRUE);
+            LL(n,thr,thr2)=dnorm(y(n), mu(n,1), sigma(1), TRUE);
+          }
+        }
+        // if (thres_cov(n) >= (thresh(thr2)+is_from_west(n)*mean_diff_tag_area)){
+        if (thres_cov(n) >= thresh(thr2)){
+          if (Likconfig ==0){
+            nll -= dnorm(y(n), mu(n,2), sigma(2), TRUE);
+            LL(n,thr,thr2)=dnorm(y(n), mu(n,2), sigma(2), TRUE);
+          }
+        }
+      }
+    }
   }
+
 
   // ============ Outputs =============
 
   // Model parameters
   REPORT(beta);
   REPORT(sigma);
+  REPORT(LL);
   ADREPORT(mu);
 
   //--------------------------------------------------------------------
@@ -90,3 +123,4 @@ Type objective_function<Type>::operator() ()
   return nll;
 
 }
+
