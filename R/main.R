@@ -606,7 +606,7 @@
         Data_mackerel_use_Ireland_select$julian <-  as.numeric(julian(Data_mackerel_use_Ireland_select$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
         Data_mackerel_use_Ireland_select$julian_std <-  Data_mackerel_use_Ireland_select$julian %% 365
         yyy1 <- Data_mackerel_use_Ireland_select$julian_std
-        threshold_vals <- as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.05)))
+        threshold_vals <- as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.1)))
         threshold_vals_group <- cut(Data_mackerel_use_Ireland_select$julian_std, c(0, threshold_vals, 365))
         threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
         threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
@@ -644,10 +644,17 @@
 				setwd(op)
 
 				set.seed(1)
-				rm(opt)
+				rm(opt1break)
 				data_tmb$Likconfig = 0
 				obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 				opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+
+				qqqq <- nlminb( objective=obj1break$fn, gradient=obj1break$gr, start=obj1break$par, lower=-14, upper=14,
+				                control=list(eval.max = 20000, iter.max = 20000))
+
+				par(mfrow=c(5,5))
+				for (i in 1:length(parameters_tmb$beta))	plot(tmbprofile(obj1break, name = i))
+
 				# data_tmb$Likconfig = 1
 				# parameters_tmb <- list(beta=matrix(opt1break$par[1:(ncol(data_tmb$X)*N_threshold)],ncol=2), log_sigma=as.numeric(obj1break$par[(ncol(data_tmb$X)*N_threshold)+1:2]))
 				# obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
@@ -718,7 +725,9 @@
           Estimates_df$group <- factor(Estimates_df$group, levels=c("Before","After"))
           Estimates_df$covariate <- c(rep(c("Intercept", "From_West", "> May 22nd", 2015:2019, "body length", "recapture date", "From West + >May 22nd"), 2),
                                     "log(sigma)", "log(sigma)")
-          Estimates_df$mean(Intercept-11) <- ifelse(Estimates_df$mean>11, Estimates_df$mean-11, Estimates_df$mean)
+          Estimates_df$sigma <- exp(Estimates_df[grep("sigma", Estimates_df$covariate),'mean'])
+
+          Estimates_df$mean_transformed <- ifelse(Estimates_df$mean>11, Estimates_df$mean-11, Estimates_df$mean)
 
           Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "From_West", "> May 22nd", "From West + >May 22nd", 2015:2019, "body length", "recapture date", "log(sigma)"))
           library(ggplot2)
