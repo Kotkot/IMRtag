@@ -371,12 +371,14 @@
 
 
       library(glmmTMB)
+			library(DHARMa)
 			m14 <- glmmTMB(rate ~ length + I(length^2) + Tag_area + Release_year + julian_recapture_std, family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m15 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ I(julian_recapture_std), family=gaussian, data=Data_mackerel_use_Ireland_select)
 			m16 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ julian_recapture_std, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
 
 			m15b <- glmmTMB(rate ~ length + Tag_area*Release_timing + julian_recapture_std:Release_year, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
-			m16 <- glmmTMB(rate ~ length + Tag_area*Release_timing + julian_recapture_std, family=gaussian, data=Data_mackerel_use_Ireland_select)
+
+			m16 <- glmmTMB(log_rate ~ scale(length) + Tag_area*Release_timing + Release_year + scale(julian_recapture_std), family=gaussian, data=Data_mackerel_use_Ireland_select)
 
 			AICtab(m1,m2,m3,m4,m5,m6,m7,m8,
 				   m0,m01,m02,m03,m04,m05,m10,m11,m12,m13)
@@ -594,8 +596,12 @@
 			library(TMB)
 			library(TMBhelper)
 
+        # Rescaling parameters to ease interpretation
+        Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
+        Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$length)
+
         # Choice of the design matrix
-        m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length + julian_recapture_std, data=Data_mackerel_use_Ireland_select)
+        m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
         m_frame <- model.frame(m1)
         XX <- model.matrix(m1, m_frame)
 
@@ -606,11 +612,58 @@
         Data_mackerel_use_Ireland_select$julian <-  as.numeric(julian(Data_mackerel_use_Ireland_select$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
         Data_mackerel_use_Ireland_select$julian_std <-  Data_mackerel_use_Ireland_select$julian %% 365
         yyy1 <- Data_mackerel_use_Ireland_select$julian_std
-        threshold_vals <- as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.1)))
+        threshold_vals <- as.numeric(quantile(yyy1, seq(0.05, 0.95, by=0.05)))
         threshold_vals_group <- cut(Data_mackerel_use_Ireland_select$julian_std, c(0, threshold_vals, 365))
         threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
         threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
         threshold_vals_group_end <- c(which(diff(threshold_vals_group, lag=1) == 1), length(threshold_vals_group))
+
+
+
+        # no threshold model
+        use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh")
+        compile(paste0(use_version_simple, ".cpp"))
+        dyn.load(use_version_simple)
+
+        N_threshold <- 1
+        data_tmb <- list(N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+                         X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
+                         y = Data_mackerel_use_Ireland_select$log_rate,
+                         Likconfig = 0      # 0 = dnorm, 1 = dgamma
+        )
+
+        parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+                               log_sigma = rep(log(0.2),N_threshold)
+        )
+
+        Map = list()
+
+        op <- getwd()
+        setwd(paste0(getwd(),"/src"))
+        obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_nothresh", map=Map)
+        setwd(op)
+
+        opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+
+        sd_report <- sdreport(obj)
+        Check_Identifiable(obj)
+        sigma <- as.vector(exp(summary(sd_report, "fixed")[grep("log_sigma", rownames(summary(sd_report, "fixed"))),1]))
+        mu_pred <- matrix(summary(sd_report, "report")[,1], ncol=1, byrow=FALSE)
+
+        par(mfrow=c(2,1), mar=c(4,3,1,1), oma=c(1,1,1,1))
+        plot(mu_pred, data_tmb$y); abline(0,1)
+        qqnorm(y=(mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y))
+        abline(0,1, lty=2)
+
+         ## Now producing the residual vs predictor
+        opt_resid <- (mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y)
+        par(mfrow=c(3,2))
+        plot(Data_mackerel_use_Ireland_select$length, opt_resid); abline(h=0, lty=2)
+        plot(as.factor(Data_mackerel_use_Ireland_select$Tag_area), opt_resid); abline(h=0, lty=2)
+        plot(as.factor(Data_mackerel_use_Ireland_select$Release_timing), opt_resid); abline(h=0, lty=2)
+        plot(Data_mackerel_use_Ireland_select$Release_year, opt_resid); abline(h=0, lty=2)
+        plot(Data_mackerel_use_Ireland_select$julian_recapture_std, opt_resid); abline(h=0, lty=2)
+
 
 
         # A single change point model
@@ -649,11 +702,9 @@
 				obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 				opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
-				qqqq <- nlminb( objective=obj1break$fn, gradient=obj1break$gr, start=obj1break$par, lower=-14, upper=14,
+				#qqqq <- nlminb( objective=obj1break$fn, gradient=obj1break$gr, start=obj1break$par, lower=-14, upper=14,
 				                control=list(eval.max = 20000, iter.max = 20000))
 
-				par(mfrow=c(5,5))
-				for (i in 1:length(parameters_tmb$beta))	plot(tmbprofile(obj1break, name = i))
 
 				# data_tmb$Likconfig = 1
 				# parameters_tmb <- list(beta=matrix(opt1break$par[1:(ncol(data_tmb$X)*N_threshold)],ncol=2), log_sigma=as.numeric(obj1break$par[(ncol(data_tmb$X)*N_threshold)+1:2]))
@@ -671,7 +722,7 @@
 				# The weighting factor is the average likelihood across the N datapoint per threshold value
 					weight <- apply(exp(LL), 2, mean)
 					weight <- weight/sum(weight)
-					plot(data_tmb$thresh, weight)
+					plot(data_tmb$thresh, weight, type="b")
 #           weight <- rep(0,17)
 # 					weight[5]=1
 
@@ -687,10 +738,6 @@
 					  }
 					}
 
-					## Now plotting the residuals
-					plot(Prediction, data_tmb$y); abline(0,1)
-					qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
-					abline(0,1, lty=2)
 
 					## Now producing the residual vs predictor
 					opt1break_resid <- (Prediction-data_tmb$y)/sd(Prediction-data_tmb$y)
@@ -708,32 +755,50 @@
           Estimates <- as.data.frame(Estimates)
           Estimates$gradient <- opt1break$diagnostics$final_gradient
 
-          par(mfrow=c(3,2), oma=c(1,1,2,1), mar=c(4,4,1,1), cex.lab=1.3, cex.axis=1.3, cex.main=1.4)
           plot(data_tmb$thresh, weight, type="b", main="", xlab="", ylab="")
-          mtext(side = 1, line=3, "Recapture time (julian days)")
-          mtext(side = 2, line=3, "Likelihood")
-          mtext(side = 3, line=1, "Threshold value")
-          plot(1:50, Estimates[grep("Intercept", rownames(Estimates)),1][1]+1:50*Estimates[grep("length", rownames(Estimates)),1][1], type="l", main="", xlab="", ylab="", ylim=c(11.5,13))
-          lines(1:50, Estimates[grep("Intercept", rownames(Estimates)),1][2]+1:50*Estimates[grep("length", rownames(Estimates)),1][2], lty=2)
-          mtext(side = 1, line=3, "Effect of fish length")
-          mtext(side = 2, line=3, "Likelihood")
-          mtext(side = 3, line=1, "Threshold value")
+          mtext(side = 1, line=3, "Recapture time (julian days)", cex=1.3)
+          mtext(side = 2, line=3, "Likelihood", cex=1.3)
+          mtext(side = 3, line=1, "Threshold value", lwd=2, cex=1.4)
+          abline(v=240, lty=2)
+          abline(v=270, lty=2)
+          abline(v=300, lty=2)
+          text(x=225, y=0.106, "August")
+          text(x=255, y=0.106, "September")
+          text(x=285, y=0.106, "October")
+
 
           Estimates_df <- as.data.frame(Estimates[,1:2])
           colnames(Estimates_df) <- c("mean", "se")
           Estimates_df$group <- c(rep(c("Before","After"), each=ncol(XX)),"Before","After")
           Estimates_df$group <- factor(Estimates_df$group, levels=c("Before","After"))
-          Estimates_df$covariate <- c(rep(c("Intercept", "From_West", "> May 22nd", 2015:2019, "body length", "recapture date", "From West + >May 22nd"), 2),
+          Estimates_df$group <- factor(Estimates_df$group, labels=c("Before threshold","After threshold"))
+          Estimates_df$covariate <- c(rep(c("Intercept", "From_West", "> May 22nd", 2015:2019, "body length (rescaled)", "recapture date (rescaled)", "From West + >May 22nd"), 2),
                                     "log(sigma)", "log(sigma)")
           Estimates_df$sigma <- exp(Estimates_df[grep("sigma", Estimates_df$covariate),'mean'])
+          Estimates_df$mean_transformed <- ifelse(Estimates_df$mean>8, Estimates_df$mean-8, Estimates_df$mean)
+          Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "From_West", "> May 22nd", "From West + >May 22nd", 2015:2019, "body length (rescaled)", "recapture date (rescaled)", "log(sigma)"))
+          levels(Estimates_df$covariate)[1] <- "Intercept (true_value add 8.0)"
+          Estimates_df$x_fake = 2.5
+          Estimates_df$label = paste0("", round(Estimates_df$mean, 3))
 
-          Estimates_df$mean_transformed <- ifelse(Estimates_df$mean>11, Estimates_df$mean-11, Estimates_df$mean)
-
-          Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "From_West", "> May 22nd", "From West + >May 22nd", 2015:2019, "body length", "recapture date", "log(sigma)"))
           library(ggplot2)
           ggplot(Estimates_df, aes(x=mean_transformed, y=covariate)) + facet_grid(.~ group) + geom_point() +
             geom_errorbar(aes(xmin=mean_transformed-1.96*se, xmax=mean_transformed+1.96*se, width=0.1))+
-            geom_vline(xintercept=0, linetype=2) + theme_bw()
+            geom_vline(xintercept=0, linetype=2) + theme_bw() + coord_cartesian(xlim=c(-2,3.5)) +
+            geom_text(aes(x=x_fake, y=covariate, label=label),size=3,hjust=0)
+
+          # Likelihood profile & residual
+          par(mfrow=c(5,5), oma=c(1,1,1,1), mar=c(2,3,3,1))
+          for (i in 1:length(parameters_tmb$beta))	plot(tmbprofile(obj1break, name = i), main=Estimates_df$covariate[i])
+          plot(0,0,type="n", bty="n", axes=F)
+          text(x=0, y=0, "max_gradient = 0.004", xpd=NA)
+
+          ## Now plotting the residuals
+          par(mfrow=c(2,1), mar=c(4,3,1,1), oma=c(1,1,1,1))
+          plot(Prediction, data_tmb$y); abline(0,1)
+          qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
+          abline(0,1, lty=2)
+
 
 
           ## Simulating observations
