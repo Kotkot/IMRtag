@@ -612,7 +612,7 @@
         Data_mackerel_use_Ireland_select$julian <-  as.numeric(julian(Data_mackerel_use_Ireland_select$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
         Data_mackerel_use_Ireland_select$julian_std <-  Data_mackerel_use_Ireland_select$julian %% 365
         yyy1 <- Data_mackerel_use_Ireland_select$julian_std
-        threshold_vals <- as.numeric(quantile(yyy1, seq(0.05, 0.95, by=0.05)))
+        threshold_vals <- as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.05)))
         threshold_vals_group <- cut(Data_mackerel_use_Ireland_select$julian_std, c(0, threshold_vals, 365))
         threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
         threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
@@ -798,8 +798,6 @@
           plot(Prediction, data_tmb$y); abline(0,1)
           qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
           abline(0,1, lty=2)
-
-
 
           ## Simulating observations
 				# 	Nit = 10000
