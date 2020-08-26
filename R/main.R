@@ -13,7 +13,7 @@
 
 #### Installing required packages
 	devtools::install_github("fishvice/taggart", dependencies = FALSE)
-
+source("R/download_data_functions.R")
 	library(taggart)
 	library(adehabitatHR)
 	library(tidyverse)
@@ -184,7 +184,7 @@
 								mutate(mean_lon_tag_area=mean(lo),
 									   mean_lat_tag_area=mean(la))
 
-		Data_mackerel_final_sameyear_sameyear <- Data_mackerel_final_sameyear[which(as.numeric(Data_mackerel_final_sameyear$Release_year) == as.numeric(Data_mackerel_final_sameyear$Catch_year)),]
+		Data_mackerel_final_sameyear <- Data_mackerel_final[which(as.numeric(Data_mackerel_final$Release_year) == as.numeric(Data_mackerel_final$Catch_year)),]
 		Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year) %>%
 		  mutate(mean_lon_tag=mean(lo),
 				 mean_lat_tag=mean(la),
@@ -703,7 +703,7 @@
 				opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
 				#qqqq <- nlminb( objective=obj1break$fn, gradient=obj1break$gr, start=obj1break$par, lower=-14, upper=14,
-				                control=list(eval.max = 20000, iter.max = 20000))
+				#                control=list(eval.max = 20000, iter.max = 20000))
 
 
 				# data_tmb$Likconfig = 1
