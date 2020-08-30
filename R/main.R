@@ -339,7 +339,7 @@ source("R/download_data_functions.R")
 		Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
 
 		## Using duration (not standardized) but focusing on within year recapture
-			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2013:2019)
+			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2011:2019)
 			Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
 
 			with(Data_mackerel_use_Ireland_select, plot(length, rate))
@@ -941,10 +941,11 @@ source("R/download_data_functions.R")
 				  dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
 				  dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
 
-				  dat_recap_new <- dat_recap %>% count(round(cLon,1), round(cLat,1), round(julian,0))
-				  colnames(dat_recap_new) <- c("cLon", "cLat", "julian", "n")
-				  dat_release_new <- dat_release %>% count(round(lo,1), round(la,1), round(julian,0))
-          colnames(dat_release_new) <- c("lo", "la", "julian", "n")
+				  dat_recap_new <- as_tibble(dat_recap) %>% dplyr::select(cLon, cLat, julian) %>% count(round(cLon,1), round(cLat,1), round(julian,0))
+				  colnames(dat_recap_new) <- c("cLon", "cLat", "julian_recapture", "n")
+
+				  dat_release_new <- as_tibble(dat_release) %>% dplyr::select(lo, la, julian) %>% count(round(lo,1), round(la,1), round(julian,0))
+          colnames(dat_release_new) <- c("lo", "la", "julian_release", "n")
 
 				  ncount_release <- dat_release %>% count()
 				  ncount_release$lon = c(-32)
@@ -970,12 +971,14 @@ source("R/download_data_functions.R")
 				  hull_new1 <- hull_new
 
 				  area <- Polygon(hull_new[,c('cLon','cLat')])@area
-				  g1 <- ggmap(map_area) + geom_point(data=dat_release_new, aes(x=lo, y=la,col=julian, size=n/1000), shape=1) +
+				  g1 <- ggmap(map_area) + geom_point(data=dat_release_new, aes(x=lo, y=la,col=julian_release, size=n)) +
 				    #geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat)) +
 				    scale_color_viridis_c() +
+				    scale_size_continuous(breaks=c(1,10,100,1000),range = c(0.3, 6)) +
 				    new_scale_color() +
-				    geom_point(data=dat_recap_new, aes(x=cLon, y=cLat, col=julian, size=n)) +
+				    geom_point(data=dat_recap_new, aes(x=cLon, y=cLat, col=julian_recapture, size=n)) +
 				    scale_color_viridis_c() +
+				    #scale_size_continuous(range = c(0.3, 0.6)) +
 				    geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
 				    geom_text(data=data.frame(x=-26,y=55,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
 				    ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) #+
@@ -990,7 +993,7 @@ source("R/download_data_functions.R")
 				  return(RES)
 			}
 
-		Make_plot_timing <- function(Years, lag){
+		Make_plot_timing_simple <- function(Years, lag){
 					  SAVE <- list()
 					  # areas <- c()
 					  for (yr in seq_along(Years)){
@@ -1008,19 +1011,35 @@ source("R/download_data_functions.R")
 					  # lm1 <- (lm(Size_area ~ Time_release + Year, areas_df))
 
 					  ## Plotting
-					  ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
-					  ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+					  if(length(Years)<=4){
+					    ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=2, ncol=2)
+					    ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  }
+					  if(length(Years)>4 & length(Years)>=8){
+					    ggg_timerelease_size1 <- arrangeGrob(grobs=map(SAVE[1:4], pluck, "plot"), nrow=2, ncol=2)
+					    ggg_timerelease_size2 <- arrangeGrob(grobs=map(SAVE[5:length(Years)], pluck, "plot"), nrow=2, ncol=2)
+					    ggsave(ggg_timerelease_size1, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part1.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					    ggsave(ggg_timerelease_size2, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part2.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  }
+					  if(length(Years)>8){
+					    ggg_timerelease_size1 <- arrangeGrob(grobs=map(SAVE[1:4], pluck, "plot"), nrow=2, ncol=2)
+					    ggg_timerelease_size2 <- arrangeGrob(grobs=map(SAVE[5:8], pluck, "plot"), nrow=2, ncol=2)
+					    ggg_timerelease_size3 <- arrangeGrob(grobs=map(SAVE[9:length(Years)], pluck, "plot"), nrow=2, ncol=2)
+					    ggsave(ggg_timerelease_size1, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part1.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					    ggsave(ggg_timerelease_size2, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part2.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					    ggsave(ggg_timerelease_size3, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part3.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  }
 
-					  RES <- list()
-					  RES$areas <- areas.std
-					  RES$areas.lm <- lm1
-					  return(RES)
+					  #RES <- list()
+					  #RES$areas <- areas.std
+					  #RES$areas.lm <- lm1
+					  #return(RES)
 					}
 
 		# no lag : same year to 2 years lag in recapture
-		(Area_timing_lag0 <- Make_plot_timing(Years=2013:2019, lag=0))
-		(Area_timing_lag1 <- Make_plot_timing(Years=2013:2018, lag=1))
-		(Area_timing_lag2 <- Make_plot_timing(Years=2013:2017, lag=2))
+		(Area_timing_lag0 <- Make_plot_timing_simple(Years=2011:2019, lag=0))
+		(Area_timing_lag1 <- Make_plot_timing_simple(Years=2011:2018, lag=1))
+		(Area_timing_lag2 <- Make_plot_timing_simple(Years=2011:2017, lag=2))
 
 		summary(Area_timing_lag0[[2]])
 		summary(Area_timing_lag1[[2]])
