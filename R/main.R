@@ -25,6 +25,8 @@ source("R/download_data_functions.R")
 	library(glmmTMB)
 	library(gridExtra)
 	library(scatterpie)
+  library(ggplot2)
+  library(ggnewscale)
 
 #### Downloading data and checking it
 	tg_catches()         %>% glimpse()
@@ -337,7 +339,7 @@ source("R/download_data_functions.R")
 		Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
 
 		## Using duration (not standardized) but focusing on within year recapture
-			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2019)
+			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2013:2019)
 			Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
 
 			with(Data_mackerel_use_Ireland_select, plot(length, rate))
@@ -923,6 +925,110 @@ source("R/download_data_functions.R")
 					Estimates_2break$gradient <- opt_2breaks$diagnostics$final_gradient
 
 ############ Some nice plots to look at mark recapture pattern
+
+		#### Ivestigate the effect of release timing on the pattern of mackerel distribution
+		plot_timerelease_simple <- function(Year, lag=0)
+		{
+				  dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
+				                                              Tag_area %in% c("West_Ireland", "North_Ireland"))
+				  dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
+				  dat_release$Tag_area <- as.character(dat_release$Tag_area)
+				  dat_release$Tag_area <- as.factor(dat_release$Tag_area)
+				  dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+				  dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
+				                                                Tag_area %in% c("West_Ireland", "North_Ireland"))
+				  dat_recap$julian <-  as.numeric(julian(dat_recap$recapturedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
+				  dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
+				  dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
+
+				  dat_recap_new <- dat_recap %>% count(round(cLon,1), round(cLat,1), round(julian,0))
+				  colnames(dat_recap_new) <- c("cLon", "cLat", "julian", "n")
+				  dat_release_new <- dat_release %>% count(round(lo,1), round(la,1), round(julian,0))
+          colnames(dat_release_new) <- c("lo", "la", "julian", "n")
+
+				  ncount_release <- dat_release %>% count()
+				  ncount_release$lon = c(-32)
+				  ncount_release$lat = c(53)
+				  ncount_release$label = paste0("n=", ncount_release$n)
+				  ncount_recap <- dat_recap %>% count()
+				  ncount_recap$lon = c(-10)
+				  ncount_recap$lat = c(70)
+				  ncount_recap$label = paste0("n=", ncount_recap$n)
+				  Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
+				  Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
+				  Select_catch <- subset(Select_catch, cLat<72)
+				  hull_catch <- Select_catch %>% dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat)
+				  hull <- dat_recap %>% dplyr::select(cLon, cLat) %>%  dplyr::slice(chull(cLon, cLat))
+				  gravity <- hull %>%  mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
+				    dplyr::select(mean_lon, mean_lat) %>% dplyr::distinct()
+				  hull_new <- as.data.frame(hull)
+				  coordinates(hull_new) <- c("cLon", "cLat")
+				  crs(hull_new) <- "+proj=longlat +datum=WGS84"
+				  new_proj <- "+proj=utm +zone=30 +ellps=GRS80 +units=m +no_defs"
+				  hull_new <- spTransform(hull_new, new_proj)
+				  hull_new <- as.data.frame(hull_new)
+				  hull_new1 <- hull_new
+
+				  area <- Polygon(hull_new[,c('cLon','cLat')])@area
+				  g1 <- ggmap(map_area) + geom_point(data=dat_release_new, aes(x=lo, y=la,col=julian, size=n/1000), shape=1) +
+				    #geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat)) +
+				    scale_color_viridis_c() +
+				    new_scale_color() +
+				    geom_point(data=dat_recap_new, aes(x=cLon, y=cLat, col=julian, size=n)) +
+				    scale_color_viridis_c() +
+				    geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+				    geom_text(data=data.frame(x=-26,y=55,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+				    ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) #+
+				    #geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
+				  g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0) +
+				    geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0)
+				  g1
+
+				  RES <- list()
+				  RES$plot <- g1
+				  RES$area <- area
+				  return(RES)
+			}
+
+		Make_plot_timing <- function(Years, lag){
+					  SAVE <- list()
+					  # areas <- c()
+					  for (yr in seq_along(Years)){
+					    SAVE[[yr]] <- plot_timerelease_simple(Years[[yr]], lag=lag)
+					    # areas <- rbind(areas, SAVE[[yr]][[2]])
+					  }
+					  # areas.std <- apply(areas, 1, function(x) (x-mean(x,na.rm=T))/sd(x,na.rm=T))
+					  # colnames(areas.std) <- Years
+					  #
+					  # areas_df <- reshape2::melt(areas.std, value.name="Size_area")
+					  # colnames(areas_df) <- c("Year", "Size_area")
+					  # areas_df$Year <- as.factor(areas_df$Year)
+					  # areas_df$Time_release <- as.factor(areas_df$Time_release)
+					  #
+					  # lm1 <- (lm(Size_area ~ Time_release + Year, areas_df))
+
+					  ## Plotting
+					  ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+					  ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+
+					  RES <- list()
+					  RES$areas <- areas.std
+					  RES$areas.lm <- lm1
+					  return(RES)
+					}
+
+		# no lag : same year to 2 years lag in recapture
+		(Area_timing_lag0 <- Make_plot_timing(Years=2013:2019, lag=0))
+		(Area_timing_lag1 <- Make_plot_timing(Years=2013:2018, lag=1))
+		(Area_timing_lag2 <- Make_plot_timing(Years=2013:2017, lag=2))
+
+		summary(Area_timing_lag0[[2]])
+		summary(Area_timing_lag1[[2]])
+		summary(Area_timing_lag2[[2]])
+
+
+
+
 
 #### Ivestigate the effect of release region on the pattern of mackerel distribution
     plot_region <- function(Year, lag=0)
