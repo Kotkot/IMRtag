@@ -194,12 +194,21 @@ sde <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, sqrt(diag(so
 
 cov <- solve(obj1break$he(opt1break$par))
 par(mfrow=c(4,3))
-for (i in 1:11){
-if (! TRUE %in% is.na(mle[i,])) plot(density(rnorm(100000, diff(mle[i,]), cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)]))); abline(v=0)
+for (i in 1:12){
+if (! TRUE %in% is.na(mle[i,])) plot(density(rnorm(100000, diff(mle[i,]), sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)])))); abline(v=0)
 }
+
+# -- alternative: --
+pp <- numeric(12)
+for(i in 1:12){
+  pp[i] <- 2*pnorm(abs(mle[i,1]-mle[i,2]), mean = 0, sd = sqrt(cov[i,i]+cov[ncol(XX)+i,ncol(XX)+i]-2*cov[i,ncol(XX)+i]), lower.tail = FALSE)
+}
+pp
 
 
 plot(24-0:8, AIC_selection[1:9], xlab = "Number of beta parameters", ylab = "AIC")
 abline(h=min(AIC_selection), col = 2, lty=2)
 opt1break$par
 which.min(AIC_selection)
+
+
