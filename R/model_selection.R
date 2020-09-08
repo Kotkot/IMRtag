@@ -46,12 +46,6 @@ p = 2 # AIC
 # -- Initial values: --
 parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
                        log_sigma = rep(log(0.2),N_threshold))
-parameters_tmb2 <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
-                       log_sigma = rep(log(0.2),N_threshold))
-parameters_tmb_best <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
-                       log_sigma = rep(log(0.2),N_threshold))
-
-
 
 # -- looping over potenial models: --
 for(k in 1:(nrow(Maps)-1)){
@@ -65,84 +59,47 @@ for(k in 1:(nrow(Maps)-1)){
     opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
                           control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
-    # -- AIC: --
+    AIC_selection[1] <- opt1break$objective * 2 + p * length(opt1break$par)
+    AIC_selection2[1] <- opt1break$objective * 2 + p * length(opt1break$par)
 
-    AIC_selection[k] <- opt1break$objective * 2 + p * length(opt1break$par)
-    # which parameter estimate has the lowest p-value?
-    sde <- sqrt(diag(solve(obj1break$he(opt1break$par))))
-    j <- which.max(2*pnorm(abs(opt1break$par)/sde, lower.tail = FALSE)[-(length(opt1break$par)-0:1)])
-    Maps[(k+1):nrow(Maps), j] <- NA_real_
-    parameters_tmb$beta[j%%ncol(XX),ifelse(j/ncol(XX)>1,2,1)] <- 0
-
-    if (j%%2==0) {Maps2[(k+1):nrow(Maps2), (j-1):j] <- Maps2[k,j-1] ; Maps2[(k+1), (j+1):ncol(Maps2)] <- Maps2[k, (j+1):ncol(Maps2)]-1 }
-    if (j%%2==1) {Maps2[(k+1):nrow(Maps2), j:(j+1)] <- Maps2[k,j]   ; Maps2[(k+1), (j+2):ncol(Maps2)] <- Maps2[k, (j+2):ncol(Maps2)]-1 }
-
-
-    }
-  if (k==2){ # from this step,we evaluate whether it is better to simply remove the parameter or have a single parameter for before and after threhold
-    # testing to remove the single parameter
-      Map = list()
-      Map$beta <- factor(Maps[k,])
-      Map$log_sigma <- factor(c(2*ncol(XX)+1:2))
-
-      #-- optimize-- :
-      obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
-      opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
-                            control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
-
-      # -- AIC: --
-      map <- as.numeric(c(as.character(Map$beta), (length(opt1break$par)-c(1,0))))
-      mle <- sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break$par[map[x]], NA))
-      names(mle) <- 1:length(map)
-      AIC_selection[k] <- opt1break$objective * 2 + p * length(opt1break$par)
-      # which parameter estimate has the lowest p-value?
+    #-- which parameter estimate has the lowest p-value? downward model selection --
+      # only removing 1
       sde <- sqrt(diag(solve(obj1break$he(opt1break$par))))
       j <- which.max(2*pnorm(abs(opt1break$par)/sde, lower.tail = FALSE)[-(length(opt1break$par)-0:1)])
-      # Correct for already removed parameters:
-      index.name <- as.numeric(names(mle[!is.na(mle)][j]))
-      j.corrected <- which(Maps[k,] == index.name)
-      Maps[(k+1):nrow(Maps), j.corrected] <- NA_real_
-      parameters_tmb$beta[j.corrected%%ncol(XX),ifelse(j.corrected/ncol(XX)>1,2,1)] <- 0
+      Maps[(k+1):nrow(Maps), j] <- NA_real_
+      parameters_tmb$beta[ifelse(j<=ncol(XX),j,j-ncol(XX)),ifelse(j/ncol(XX)>1,2,1)] <- 0
+      # now fixing before and after threshold
+      if (j[1] <= ncol(XX)) {Maps2[(k+1), c(j,j+ncol(XX))] <- Maps2[k,j] } #; Maps2[(k+1), (j+1):ncol(Maps2)] <- Map2$beta[(j+1):ncol(Maps2)]-1 }
+      if (j[1] >  ncol(XX)) {Maps2[(k+1), c(j-ncol(XX),j)] <- Maps2[k,j-ncol(XX)]   } #; Maps2[(k+1), (j+2):ncol(Maps2)] <- Map2$beta[(j+2):ncol(Maps2)]-1 }
 
-    # testing to combine the parameter before and after the threshold
+    # -- Now we choose the best out of these two using AIC
+      Map = list()
+      Map$beta <- factor(Maps[k+1,])
+      Map$log_sigma <- factor(c(2*ncol(XX)+1:2))
+      obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
+      opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                              control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+      AIC_selection[k+1] <- opt1break$objective * 2 + p * length(opt1break$par)
       Map2 = list()
-      Map2$beta <- factor(Maps2[k,])
+      Map2$beta <- factor(Maps2[k+1,])
       Map2$log_sigma <- factor(c(2*ncol(XX)+1:2))
-
-      #-- optimize-- :
       obj1break2 <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map2)
       opt1break2 <- fit_tmb( obj=obj1break2, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
-                            control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+                              control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+      AIC_selection2[k+1] <- opt1break2$objective * 2 + p * length(opt1break2$par)
 
-      # -- AIC: --
-      map2 <- as.numeric(c(as.character(Map2$beta), (length(opt1break2$par)-c(1,0))))
-      mle2 <- sapply(1:length(map2), function(x) ifelse(is.na(x)==F, opt1break2$par[map2[x]], NA))
-      names(mle2) <- 1:length(map2)
-
-      #names(mle2) <- as.numeric(c(as.character(Map2$beta[!is.na(Map2$beta)]), as.character(Map2$log_sigma[!is.na(Map2$log_sigma)])))
-      AIC_selection2[k] <- opt1break2$objective * 2 + p * length(opt1break2$par)
-      # which parameter estimate has the lowest p-value?
-      sde <- sqrt(diag(solve(obj1break2$he(opt1break2$par))))
-      j <- which.max(2*pnorm(abs(opt1break2$par)/sde, lower.tail = FALSE)[-(length(opt1break2$par)-0:1)])
-      # Correct for already removed parameters:
-      index.name <- as.numeric(names(mle2[!is.na(mle2)][j]))
-      j.corrected <- which(Maps2[k,] == j)
-
-      if (j.corrected%%2==0) {Maps2[(k+1):nrow(Maps2), (j.corrected-1):j.corrected] <- Maps2[k,j.corrected-1] ; Maps2[(k+1), (j.corrected+1):ncol(Maps2)] <- Maps2[k, (j.corrected+1):ncol(Maps2)]-1 }
-      if (j.corrected%%2==1) {Maps2[(k+1):nrow(Maps2), j.corrected:(j.corrected+1)] <- Maps2[k,j.corrected]   ; Maps2[(k+1), (j.corrected+2):ncol(Maps2)] <- Maps2[k, (j.corrected+2):ncol(Maps2)]-1 }
-
-    # And now, we choose the best out of these two
-      if (AIC_selection2[k] < AIC_selection[k]) {
+      if (AIC_selection2[k+1] < AIC_selection[k+1]) {
         Maps_best[k+1,] = Maps2[k+1,]
         parameters_tmb_best <- parameters_tmb2
       }
-      if (AIC_selection[k] < AIC_selection2[k]){
+      if (AIC_selection[k+1] < AIC_selection2[k+1]){
         Maps_best[k+1,] = Maps[k+1,]
         parameters_tmb_best <- parameters_tmb
       }
-  }
-    if (k>2){ # from this step,we evaluate whether it is better to simply remove the parameter or have a single parameter for before and after threhold
-      # testing to remove the single parameter
+
+    }
+  if (k>1){ # from this step,we evaluate whether it is better to simply remove the parameter or have a single parameter for before and after threhold
+    # run the best model (it is a repetition of the step above but oh well)
       Map = list()
       Map$beta <- factor(Maps_best[k,])
       Map$log_sigma <- factor(c(2*ncol(XX)+1:2))
@@ -153,59 +110,48 @@ for(k in 1:(nrow(Maps)-1)){
       opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
                             control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
-      # -- AIC: --
       map <- as.numeric(c(as.character(Map$beta), (length(opt1break$par)-c(1,0))))
-      mle <- sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break$par[map[x]], NA))
-      names(mle) <- 1:length(map)
-      AIC_selection[k] <- opt1break$objective * 2 + p * length(mle)
       # which parameter estimate has the lowest p-value?
       sde <- sqrt(diag(solve(obj1break$he(opt1break$par))))
       j <- which.max(2*pnorm(abs(opt1break$par)/sde, lower.tail = FALSE)[-(length(opt1break$par)-0:1)])
       # Correct for already removed parameters:
-      index.name <- as.numeric(names(mle[!is.na(mle)][j]))
-      j.corrected <- which(Maps[k,] == index.name)
-      Maps[(k+1):nrow(Maps), j.corrected] <- NA_real_
-      parameters_tmb$beta[j.corrected%%ncol(XX),ifelse(j.corrected/ncol(XX)>1,2,1)] <- 0
+      j.corrected <- as.numeric(map[!is.na(map) & !duplicated(map)][j])
+
+      # testing to remove the single parameter
+        Maps[(k+1), ] <- Maps_best[k,]
+        Maps[(k+1), j.corrected] <- NA_real_
+        parameters_tmb$beta[ifelse(j.corrected<=ncol(XX),j.corrected,j.corrected-ncol(XX)),ifelse(j.corrected/ncol(XX)>1,2,1)] <- 0
 
       # testing to combine the parameter before and after the threshold
-      Map2 = list()
-      Map2$beta <- factor(Maps_best[k,])
-      Map2$log_sigma <- factor(c(2*ncol(XX)+1:2))
-      parameters_tmb2 <- parameters_tmb_best
+        Maps2[(k+1), ] <- Maps_best[k,]
+        if (j.corrected[1] <= ncol(XX)) {Maps2[(k+1), c(j.corrected,j.corrected+ncol(XX))] <- Maps_best[k,j.corrected] } #; Maps2[(k+1), (j.corrected+1):ncol(Maps2)] <- Map2$beta[(j.corrected+1):ncol(Maps2)]-1 }
+        if (j.corrected[1] >  ncol(XX)) {Maps2[(k+1), c(j.corrected-ncol(XX),j.corrected)] <- Maps_best[k,j.corrected-ncol(XX)]   } #; Maps2[(k+1), (j.corrected+2):ncol(Maps2)] <- Map2$beta[(j.corrected+2):ncol(Maps2)]-1 }
 
-      #-- optimize-- :
-      obj1break2 <- MakeADFun(data_tmb, parameters_tmb2, random = NULL, DLL = "mackerel_mvt_model", map=Map2)
-      opt1break2 <- fit_tmb( obj=obj1break2, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
-                             control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+      # And now the model selection
+        Map = list()
+        Map$beta <- factor(Maps[k+1,])
+        Map$log_sigma <- factor(c(2*ncol(XX)+1:2))
+        obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
+        opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                              control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+        AIC_selection[k+1] <- opt1break$objective * 2 + p * length(opt1break$par)
+        Map2 = list()
+        Map2$beta <- factor(Maps2[k+1,])
+        Map2$log_sigma <- factor(c(2*ncol(XX)+1:2))
+        obj1break2 <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map2)
+        opt1break2 <- fit_tmb( obj=obj1break2, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                               control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+        AIC_selection2[k+1] <- opt1break2$objective * 2 + p * length(opt1break2$par)
 
-      # -- AIC: --
-      map2 <- as.numeric(c(as.character(Map2$beta), (length(opt1break2$par)-c(1,0))))
-      mle2 <- sapply(1:length(map2), function(x) ifelse(is.na(x)==F, opt1break2$par[map2[x]], NA))
-      names(mle2) <- 1:length(map2)
-
-      #names(mle2) <- as.numeric(c(as.character(Map2$beta[!is.na(Map2$beta)]), as.character(Map2$log_sigma[!is.na(Map2$log_sigma)])))
-      AIC_selection2[k] <- opt1break2$objective * 2 + p * length(opt1break2$par)
-      # which parameter estimate has the lowest p-value?
-      sde <- sqrt(diag(solve(obj1break2$he(opt1break2$par))))
-      j <- which.max(2*pnorm(abs(opt1break2$par)/sde, lower.tail = FALSE)[-(length(opt1break2$par)-0:1)])
-      # Correct for already removed parameters:
-      index.name <- as.numeric(names(mle2[!is.na(mle2)][j]))
-      j.corrected <- which(Map2$beta == j)
-
-      if (j.corrected%%2==0) {Maps2[(k+1):nrow(Maps2), (j.corrected-1):j.corrected] <- Maps2[k,j.corrected-1] ; Maps2[(k+1), (j.corrected+1):ncol(Maps2)] <- Maps2[k, (j.corrected+1):ncol(Maps2)]-1 }
-      if (j.corrected%%2==1) {Maps2[(k+1):nrow(Maps2), j.corrected:(j.corrected+1)] <- Maps2[k,j.corrected]   ; Maps2[(k+1), (j.corrected+2):ncol(Maps2)] <- Maps2[k, (j.corrected+2):ncol(Maps2)]-1 }
-
-      # And now, we choose the best out of these two
-      if (AIC_selection2[k] < AIC_selection[k]) {
-        Maps_best[k+1,] = Maps2[k+1,]
-        parameters_tmb_best <- parameters_tmb2
-      }
-      if (AIC_selection[k] < AIC_selection2[k]){
-        Maps_best[k+1,] = Maps[k+1,]
-        parameters_tmb_best <- parameters_tmb
-      }
-
-    }
+        if (AIC_selection2[k+1] < AIC_selection[k+1]) {
+          Maps_best[k+1,] = Maps2[k+1,]
+          parameters_tmb_best <- parameters_tmb2
+        }
+        if (AIC_selection[k+1] <= AIC_selection2[k+1]){
+          Maps_best[k+1,] = Maps[k+1,]
+          parameters_tmb_best <- parameters_tmb
+        }
+  }
 
 }
 
