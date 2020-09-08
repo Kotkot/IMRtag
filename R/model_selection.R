@@ -174,12 +174,14 @@ for(k in 1:(nrow(Maps)-1)){
 ## Extract the best model
 AIC_selection
 AIC_selection2
+best_mod <- c(which.min(AIC_selection),which.min(AIC_selection2))[which.min(c(AIC_selection[which.min(AIC_selection)],AIC_selection2[which.min(AIC_selection2)]))]
+
 Map = list()
-Map$beta <- factor(Maps_best[2,])
+Map$beta <- factor(Maps_best[best_mod,])
 Map$log_sigma <- factor(c(2*ncol(XX)+1:2))
 parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
                        log_sigma = rep(log(0.2),N_threshold))
-parameters_tmb$beta[which(is.na(Maps_best[2,]))] <- 0
+parameters_tmb$beta[which(is.na(Maps_best[best_mod,]))] <- 0
 
 #-- optimize-- :
 obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
@@ -194,13 +196,13 @@ sde <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, sqrt(diag(so
 
 cov <- solve(obj1break$he(opt1break$par))
 par(mfrow=c(4,3))
-for (i in 1:12){
+for (i in 1:ncol(XX)){
 if (! TRUE %in% is.na(mle[i,])) plot(density(rnorm(100000, diff(mle[i,]), sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)])))); abline(v=0)
 }
 
 # -- alternative: --
-pp <- numeric(12)
-for(i in 1:12){
+pp <- numeric(ncol(XX))
+for(i in 1:ncol(XX)){
   pp[i] <- 2*pnorm(abs(mle[i,1]-mle[i,2]), mean = 0, sd = sqrt(cov[i,i]+cov[ncol(XX)+i,ncol(XX)+i]-2*cov[i,ncol(XX)+i]), lower.tail = FALSE)
 }
 pp
