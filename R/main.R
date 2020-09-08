@@ -27,6 +27,8 @@ source("R/download_data_functions.R")
 	library(scatterpie)
   library(ggplot2)
   library(ggnewscale)
+  library(TMB)
+  library(TMBhelper)
 
 #### Downloading data and checking it
 	tg_catches()         %>% glimpse()
@@ -339,7 +341,7 @@ source("R/download_data_functions.R")
 		Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
 
 		## Using duration (not standardized) but focusing on within year recapture
-			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2011:2019)
+			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2019)
 			Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
 
 			with(Data_mackerel_use_Ireland_select, plot(length, rate))
@@ -459,6 +461,7 @@ source("R/download_data_functions.R")
         ## This makes me think that I might need to develop a changepoint model (with K components)
 		## I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
 		## A Bayesian change point model has therefore been developped below
+			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland_select, Release_year %in% 2014:2019)
 			test <- Data_mackerel_use_Ireland_select
 			test <- test[order(test$log_rate),]
 
@@ -595,8 +598,6 @@ source("R/download_data_functions.R")
 
 
 		## Now doing the same model but using TMB
-			library(TMB)
-			library(TMBhelper)
 
         # Rescaling parameters to ease interpretation
         Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)

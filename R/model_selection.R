@@ -71,7 +71,7 @@ for(k in 1:(nrow(Maps)-1)){
       cov <- solve(obj1break$he(opt1break$par))
       sde <- sqrt(diag(cov))
       pvalue_diff <- function(i){
-        if (! TRUE %in% mle[i,]) out <- 2*pnorm(abs(diff(mle[i,])), 0, cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)], lower.tail = FALSE)
+        if (! TRUE %in% mle[i,]) out <- 2*pnorm(abs(diff(mle[i,])), 0, sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)]), lower.tail = FALSE)
         if (TRUE %in% mle[i,]) out <- NA
         return(out)
       }
