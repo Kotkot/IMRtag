@@ -18,6 +18,7 @@ Type objective_function<Type>::operator() ()
   // Data for the maturity ogive at length part
   DATA_INTEGER(N);                      //  number of data points
   DATA_MATRIX(X);                  		  //  the design matrix
+  DATA_INTEGER(Nthres);
   DATA_VECTOR(y);                  		  //  response
   DATA_INTEGER(Likconfig);
 
@@ -47,18 +48,19 @@ Type objective_function<Type>::operator() ()
   // vector<Type> lp_l(Nthres+1);
   vector<Type> LL(N);
 
-	for (int n=0;n<N;n++){
-	// if (thres_cov(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
-		if (Likconfig ==0){
-			nll -= dnorm(y(n), mu(n), sigma, TRUE);			// for normal distribution on log scale
-			LL(n)=dnorm(y(n), mu(n), sigma, TRUE);
-		}
-		if (Likconfig ==1){
-			nll -= dgamma(y(n), shape(n), scale(n), TRUE);		// for gamma distribution on log scale
-			LL(n)=dgamma(y(n), shape(n), scale(n), TRUE);
-		}
-	}	
-
+	for (int thr=0;thr<Nthres;thr++) {
+		for (int n=0;n<N;n++){
+		// if (thres_cov(n) < (thresh(thr)+is_from_west(n)*mean_diff_tag_area)){
+			if (Likconfig ==0){
+				nll -= dnorm(y(n), mu(n), sigma, TRUE);			// for normal distribution on log scale
+				LL(n)=dnorm(y(n), mu(n), sigma, TRUE);
+			}
+			if (Likconfig ==1){
+				nll -= dgamma(y(n), shape(n), scale(n), TRUE);		// for gamma distribution on log scale
+				LL(n)=dgamma(y(n), shape(n), scale(n), TRUE);
+			}
+		}	
+	}
 
   // ============ Outputs =============
 

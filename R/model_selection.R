@@ -187,6 +187,7 @@ parameters_tmb$beta[which(is.na(Maps_best[best_mod,]))] <- 0
 obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
                       control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+opt1break$objective * 2 + p * length(opt1break$par)
 
 map <- as.factor(as.numeric(c(as.character(Map$beta))))
 map <- as.numeric(factor(map, labels=1:length(levels(map))))
@@ -207,6 +208,9 @@ for(i in 1:ncol(XX)){
 }
 pp
 
+res <- data.frame(MLE=mle[1:ncol(XX),], p_value=pp)
+colnames(res) <- c("mu_before", "mu_after", "p_value")
+res
 
 plot(24-0:8, AIC_selection[1:9], xlab = "Number of beta parameters", ylab = "AIC")
 abline(h=min(AIC_selection), col = 2, lty=2)

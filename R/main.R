@@ -631,6 +631,7 @@ source("R/download_data_functions.R")
         N_threshold <- 1
         data_tmb <- list(N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
                          X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
+                         Nthres=length(threshold_vals),
                          y = Data_mackerel_use_Ireland_select$log_rate,
                          Likconfig = 0      # 0 = dnorm, 1 = dgamma
         )
@@ -647,6 +648,7 @@ source("R/download_data_functions.R")
         setwd(op)
 
         opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+        opt$objective * 2 + p * length(opt$par)
 
         sd_report <- sdreport(obj)
         Check_Identifiable(obj)
