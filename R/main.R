@@ -650,6 +650,48 @@ source("R/download_data_functions.R")
         opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
         opt$objective * 2 + p * length(opt$par)
 
+        AIC_nothres <- c()
+        Maps_nothres <- matrix(1:(ncol(XX)), ncol = (ncol(XX)), nrow =ncol(XX)+1,byrow=TRUE)
+        for(k in 1:(nrow(Maps_nothres)-1)){
+            Map = list()
+            Map$beta <- factor(Maps_nothres[k,])
+            Map$log_sigma <- factor(c(2*ncol(XX)+1))
+
+            #-- optimize-- :
+            obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_nothresh", map=Map)
+            opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                                  control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+
+            map <- as.numeric(c(as.character(Map$beta), (length(opt$par)-c(1,0))))
+            AIC_nothres[k] <- opt$objective * 2 + p * length(opt$par)
+            # only removing 1
+            mle <- matrix(sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt$par[Map$beta[x]], NA)), byrow=F, ncol=2)
+            cov <- solve(obj$he(opt$par))
+            sde <- sqrt(diag(cov))
+            pvalue_diff <- function(i){
+              if (! TRUE %in% mle[i,]) out <- 2*pnorm(abs(diff(mle[i,])), 0, sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)]), lower.tail = FALSE)
+              if (TRUE %in% mle[i,]) out <- NA
+              return(out)
+            }
+            j <- which.max(2*pnorm(abs(opt$par)/sde, lower.tail = FALSE)[-(length(opt$par)-0:1)])
+            j.corrected <- as.numeric(map[!is.na(map) & !duplicated(map)][j])
+            Maps_nothres[(k+1):nrow(Maps_nothres), j.corrected] <- NA_real_
+            parameters_tmb$beta[ifelse(j<=ncol(XX),j,j-ncol(XX)),ifelse(j/ncol(XX)>1,2,1)] <- 0
+          }
+
+        best_mod <- which.min(AIC_nothres)
+        Map = list()
+        Map$beta <- factor(Maps_nothres[best_mod,])
+        Map$log_sigma <- factor(c(2*ncol(XX)+1))
+        parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+                               log_sigma = rep(log(0.2),N_threshold))
+        parameters_tmb$beta[which(is.na(Maps_nothres[best_mod,]))] <- 0
+
+        obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_nothresh", map=Map)
+        opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                        control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+
+
         sd_report <- sdreport(obj)
         Check_Identifiable(obj)
         sigma <- as.vector(exp(summary(sd_report, "fixed")[grep("log_sigma", rownames(summary(sd_report, "fixed"))),1]))
@@ -657,7 +699,7 @@ source("R/download_data_functions.R")
 
         par(mfrow=c(2,1), mar=c(4,3,1,1), oma=c(1,1,1,1))
         plot(mu_pred, data_tmb$y); abline(0,1)
-        qqnorm(y=(mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y))
+        qqnorm(y=(mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y), xlim=c(-3.5,3.5),ylim=c(-3.5,3.5))
         abline(0,1, lty=2)
 
          ## Now producing the residual vs predictor
@@ -801,7 +843,7 @@ source("R/download_data_functions.R")
           ## Now plotting the residuals
           par(mfrow=c(2,1), mar=c(4,3,1,1), oma=c(1,1,1,1))
           plot(Prediction, data_tmb$y); abline(0,1)
-          qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y))
+          qqnorm(y=(Prediction-data_tmb$y)/sd(Prediction-data_tmb$y), xlim=c(-3.5,3.5),ylim=c(-3.5,3.5))
           abline(0,1, lty=2)
 
           ## Simulating observations
