@@ -47,6 +47,9 @@ p = 2 # AIC
 parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
                        log_sigma = rep(log(0.2),N_threshold))
 
+# option to choose the  criteria for the downward model selection
+mod_sel_option <- 1     # 1. based on p-value of estimated param # 2. based on p-value on the difference of parameter estimate before ad after threshold
+
 # -- looping over potenial models: --
 for(k in 1:(nrow(Maps)-1)){
   if (k==1){
@@ -64,8 +67,16 @@ for(k in 1:(nrow(Maps)-1)){
 
     #-- which parameter estimate has the lowest p-value? downward model selection --
       # only removing 1
-      sde <- sqrt(diag(solve(obj1break$he(opt1break$par))))
-      j <- which.max(2*pnorm(abs(opt1break$par)/sde, lower.tail = FALSE)[-(length(opt1break$par)-0:1)])
+      mle <- matrix(sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt1break$par[Map$beta[x]], NA)), byrow=F, ncol=2)
+      cov <- solve(obj1break$he(opt1break$par))
+      sde <- sqrt(diag(cov))
+      pvalue_diff <- function(i){
+        if (! TRUE %in% mle[i,]) out <- 2*pnorm(abs(diff(mle[i,])), 0, cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)], lower.tail = FALSE)
+        if (TRUE %in% mle[i,]) out <- NA
+        return(out)
+      }
+      if(mod_sel_option == 1) j <- which.max(2*pnorm(abs(opt1break$par)/sde, lower.tail = FALSE)[-(length(opt1break$par)-0:1)])
+      if(mod_sel_option == 2) j <- which.max(sapply(1:ncol(XX), pvalue_diff))
       Maps[(k+1):nrow(Maps), j] <- NA_real_
       parameters_tmb$beta[ifelse(j<=ncol(XX),j,j-ncol(XX)),ifelse(j/ncol(XX)>1,2,1)] <- 0
       # now fixing before and after threshold
@@ -112,8 +123,12 @@ for(k in 1:(nrow(Maps)-1)){
 
       map <- as.numeric(c(as.character(Map$beta), (length(opt1break$par)-c(1,0))))
       # which parameter estimate has the lowest p-value?
-      sde <- sqrt(diag(solve(obj1break$he(opt1break$par))))
-      j <- which.max(2*pnorm(abs(opt1break$par)/sde, lower.tail = FALSE)[-(length(opt1break$par)-0:1)])
+      mle <- matrix(sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt1break$par[Map$beta[x]], NA)), byrow=F, ncol=2)
+      cov <- solve(obj1break$he(opt1break$par))
+      sde <- sqrt(diag(cov))
+
+      if(mod_sel_option == 1) j <- which.max(2*pnorm(abs(opt1break$par)/sde, lower.tail = FALSE)[-(length(opt1break$par)-0:1)])
+      if(mod_sel_option == 2) j <- which.max(sapply(1:ncol(XX), pvalue_diff))
       # Correct for already removed parameters:
       j.corrected <- as.numeric(map[!is.na(map) & !duplicated(map)][j])
 
@@ -155,6 +170,33 @@ for(k in 1:(nrow(Maps)-1)){
 
 }
 
+
+## Extract the best model
+AIC_selection
+AIC_selection2
+Map = list()
+Map$beta <- factor(Maps_best[2,])
+Map$log_sigma <- factor(c(2*ncol(XX)+1:2))
+parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+                       log_sigma = rep(log(0.2),N_threshold))
+parameters_tmb$beta[which(is.na(Maps_best[2,]))] <- 0
+
+#-- optimize-- :
+obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
+opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                      control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+
+map <- as.factor(as.numeric(c(as.character(Map$beta))))
+map <- as.numeric(factor(map, labels=1:length(levels(map))))
+mle <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break$par[map[x]], NA)), byrow=F, ncol=2)
+sde <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, sqrt(diag(solve(obj1break$he(opt1break$par))))[map[x]], NA)), byrow=F, ncol=2)
+
+
+cov <- solve(obj1break$he(opt1break$par))
+par(mfrow=c(4,3))
+for (i in 1:11){
+if (! TRUE %in% is.na(mle[i,])) plot(density(rnorm(100000, diff(mle[i,]), cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)]))); abline(v=0)
+}
 
 
 plot(24-0:8, AIC_selection[1:9], xlab = "Number of beta parameters", ylab = "AIC")
