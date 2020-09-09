@@ -1,4 +1,4 @@
-N_cross = 100
+N_cross = 500
 P_cross <- 0.9
 
 # Just in case you have not compiled and loaded the model
