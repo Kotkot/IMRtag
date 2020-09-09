@@ -1,5 +1,5 @@
-N_cross = 500
-P_cross <- 0.9
+N_cross = 100
+P_cross <- 0.8
 
 # Just in case you have not compiled and loaded the model
 use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh")
