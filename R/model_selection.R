@@ -1,11 +1,6 @@
 # -----------------
 # -- Full model: --
 # -----------------
-Map = list(beta = matrix(1:(ncol(XX)*2), ncol = 2),
-           log_sigma = c(2*ncol(XX)+1:2))
-Map$beta <- factor(Map$beta)
-Map$log_sigma <- factor(Map$log_sigma)
-
 N_threshold <- 2
 data_tmb <- list(K=N_threshold,  # number of mixture components
                  N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
@@ -24,7 +19,13 @@ data_tmb <- list(K=N_threshold,  # number of mixture components
 parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
                        log_sigma = rep(log(0.2),N_threshold)
 )
-data_tmb$Likconfig = 0
+
+Map = list(beta = matrix(1:(ncol(XX)*2), ncol = 2),
+           log_sigma = c(2*ncol(XX)+1:2))
+Map$beta <- factor(Map$beta)
+Map$log_sigma <- factor(Map$log_sigma)
+
+
 obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
 opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 opt1break
@@ -178,26 +179,26 @@ AIC_selection
 AIC_selection2
 best_mod <- c(which.min(AIC_selection),which.min(AIC_selection2))[which.min(c(AIC_selection[which.min(AIC_selection)],AIC_selection2[which.min(AIC_selection2)]))]
 
-Map = list()
-Map$beta <- factor(Maps_best[best_mod,])
-Map$log_sigma <- factor(c(2*ncol(XX)+1:2))
-parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+Map_best = list()
+Map_best$beta <- factor(Maps_best[best_mod,])
+Map_best$log_sigma <- factor(c(2*ncol(XX)+1:2))
+parameters_tmb_best <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
                        log_sigma = rep(log(0.2),N_threshold))
-parameters_tmb$beta[which(is.na(Maps_best[best_mod,]))] <- 0
+parameters_tmb_best$beta[which(is.na(Maps_best[best_mod,]))] <- 0
 
 #-- optimize-- :
-obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
-opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+obj1break_best <- MakeADFun(data_tmb, parameters_tmb_best, random = NULL, DLL = "mackerel_mvt_model", map=Map_best)
+opt1break_best <- fit_tmb( obj=obj1break_best, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
                       control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
-opt1break$objective * 2 + p * length(opt1break$par)
+opt1break_best$objective * 2 + p * length(opt1break_best$par)
 
-map <- as.factor(as.numeric(c(as.character(Map$beta))))
+map <- as.factor(as.numeric(c(as.character(Map_best$beta))))
 map <- as.numeric(factor(map, labels=1:length(levels(map))))
-mle <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break$par[map[x]], NA)), byrow=F, ncol=2)
-sde <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, sqrt(diag(solve(obj1break$he(opt1break$par))))[map[x]], NA)), byrow=F, ncol=2)
+mle <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break_best$par[map[x]], NA)), byrow=F, ncol=2)
+sde <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, sqrt(diag(solve(obj1break_best$he(opt1break_best$par))))[map[x]], NA)), byrow=F, ncol=2)
 
 
-cov <- solve(obj1break$he(opt1break$par))
+cov <- solve(obj1break_best$he(obj1break_best$par))
 par(mfrow=c(4,3))
 for (i in 1:ncol(XX)){
 if (! TRUE %in% is.na(mle[i,])) plot(density(rnorm(100000, diff(mle[i,]), sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)])))); abline(v=0)
@@ -213,6 +214,8 @@ pp
 res <- data.frame(MLE=mle[1:ncol(XX),], p_value=pp)
 colnames(res) <- c("mu_before", "mu_after", "p_value")
 res
+
+
 
 plot(24-0:8, AIC_selection[1:9], xlab = "Number of beta parameters", ylab = "AIC")
 abline(h=min(AIC_selection), col = 2, lty=2)
