@@ -25,6 +25,8 @@ Type objective_function<Type>::operator() ()
   DATA_VECTOR(is_from_west);
   DATA_VECTOR(thres_cov);                  		  //  response
   DATA_VECTOR(y);                  		  //  response
+  DATA_MATRIX(X_pred);                  		  //  the design matrix
+  DATA_INTEGER(N_pred);                  		  //  the design matrix
   DATA_INTEGER(Likconfig);
 
   // Parameters
@@ -108,12 +110,18 @@ Type objective_function<Type>::operator() ()
   }
 
   // ============ Outputs =============
+  // Prediction
+  matrix<Type> mu_pred(N_pred,K);
+	for(int j=0;j<K;j++){
+	  mu_pred.col(j)=X_pred*beta.col(j);
+	}
 
   // Model parameters
   REPORT(beta);
   REPORT(sigma);
   REPORT(LL);
   ADREPORT(mu);
+  ADREPORT(mu_pred);
 
   //--------------------------------------------------------------------
 

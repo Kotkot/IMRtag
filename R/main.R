@@ -434,14 +434,15 @@ source("R/download_data_functions.R")
 		## Residual pattern does not look good
 
         ## Do some explanatory analysis to explore what is causing these patterns of residuals
+			mean_tag_area <- Data_mackerel_use_Ireland_select %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
+			mean_diff_tag_area <- as.numeric(abs(mean_tag_area[1,2] - mean_tag_area[2,2]))
+
 			with(Data_mackerel_use_Ireland_select, plot(length, log_rate))
 			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(length, log_rate))
 			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(length, log_rate))
 			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(date, log_rate))
 			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(date, log_rate))
 			ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area)
-			mean_tag_area <- Data_mackerel_use_Ireland_select %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
-			mean_diff_tag_area <- as.numeric(abs(mean_tag_area[1,2] - mean_tag_area[2,2]))
 			ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area) + geom_hline(yintercept = mean_diff_tag_area+ 8.7)+ geom_hline(yintercept =  8.7)
 
 			brr <- subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland")
@@ -462,6 +463,7 @@ source("R/download_data_functions.R")
 		## I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
 		## A Bayesian change point model has therefore been developped below
 			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland_select, Release_year %in% 2014:2019)
+			Data_mackerel_use_Ireland_select$ID <- 1:nrow(Data_mackerel_use_Ireland_select)
 			test <- Data_mackerel_use_Ireland_select
 			test <- test[order(test$log_rate),]
 
@@ -633,6 +635,8 @@ source("R/download_data_functions.R")
                          X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
                          Nthres=length(threshold_vals),
                          y = Data_mackerel_use_Ireland_select$log_rate,
+                         X_pred =as.matrix(as.data.frame(XX)),
+                         N_pred =nrow(Data_mackerel_use_Ireland_select),
                          Likconfig = 0      # 0 = dnorm, 1 = dgamma
         )
 
@@ -648,7 +652,7 @@ source("R/download_data_functions.R")
         setwd(op)
 
         opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
-        opt$objective * 2 + p * length(opt$par)
+        opt$objective * 2 + 2 * length(opt$par)
 
         AIC_nothres <- c()
         Maps_nothres <- matrix(1:(ncol(XX)), ncol = (ncol(XX)), nrow =ncol(XX)+1,byrow=TRUE)
@@ -729,6 +733,8 @@ source("R/download_data_functions.R")
 								 is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
 								 thres_cov = Data_mackerel_use_Ireland_select$julian_std,
 								 y = Data_mackerel_use_Ireland_select$log_rate,
+								 X_pred =as.matrix(as.data.frame(XX)),
+								 N_pred =nrow(Data_mackerel_use_Ireland_select),
 								 Likconfig = 0      # 0 = dnorm, 1 = dgamma
 								 )
 

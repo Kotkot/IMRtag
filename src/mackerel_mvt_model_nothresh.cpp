@@ -20,6 +20,8 @@ Type objective_function<Type>::operator() ()
   DATA_MATRIX(X);                  		  //  the design matrix
   DATA_INTEGER(Nthres);
   DATA_VECTOR(y);                  		  //  response
+  DATA_MATRIX(X_pred);                  		  //  the design matrix
+  DATA_INTEGER(N_pred);                  		  //  the design matrix
   DATA_INTEGER(Likconfig);
 
   // Parameters
@@ -59,16 +61,21 @@ Type objective_function<Type>::operator() ()
 				nll -= dgamma(y(n), shape(n), scale(n), TRUE);		// for gamma distribution on log scale
 				LL(n)=dgamma(y(n), shape(n), scale(n), TRUE);
 			}
-		}	
+		}
 	}
 
   // ============ Outputs =============
+
+  // Prediction
+  vector<Type> mu_pred(N_pred);
+	mu_pred=X_pred*beta;
 
   // Model parameters
   REPORT(beta);
   REPORT(sigma);
   REPORT(LL);
   ADREPORT(mu);
+  ADREPORT(mu_pred);
 
   //--------------------------------------------------------------------
 
