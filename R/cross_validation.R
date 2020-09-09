@@ -78,10 +78,10 @@ cross_validation <- function(x){
       Prediction <- rep(0, data_tmb1$N_pred)
       for (n in 1:data_tmb1$N_pred){
         for (thr in 1:data_tmb1$Nthres){
-          if (data_tmb1$thres_cov[n] < (data_tmb1$thresh[thr])){
+          if (testing$julian_std[n] < (data_tmb1$thresh[thr])){
             Prediction[n] = Prediction[n] + weight[thr]*mu_pred[n,1]
           }
-          if (data_tmb1$thres_cov[n] >= (data_tmb1$thresh[thr])){
+          if (testing$julian_std[n] >= (data_tmb1$thresh[thr])){
             Prediction[n] = Prediction[n] + weight[thr]*mu_pred[n,2]
           }
         }
