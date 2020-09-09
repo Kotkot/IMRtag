@@ -123,507 +123,520 @@ source("R/download_data_functions.R")
 #### If I want to look at both the mark and recapture
 	Data_mackerel_final <- Data_mackerel_all %>% subset(., !is.na(dist))
 
-#### Some visual inspection of the tagging data
-	### How often do mackerel move south
-		ggplot(Data_mackerel_all[which((Data_mackerel_all$la > Data_mackerel_all$cLat) ==TRUE),]) +
-		geom_point(aes(x=lo, y=la)) + geom_point(aes(x=cLon, y=cLat), col="red")
+	Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year) %>%
+	  mutate(mean_lon_tag=mean(lo),
+	         mean_lat_tag=mean(la),
+	         mean_lon_recap=mean(cLon),
+	         mean_lat_recap=mean(cLat))
+	Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year, length_bin) %>%
+	  mutate(mean_lon_recap_size=mean(cLon),
+	         mean_lat_recap_size=mean(cLat))
+	Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year, length_bin, Tag_area_large) %>%
+	  mutate(mean_lon_recap_size_area=mean(cLon),
+	         mean_lat_recap_size_area=mean(cLat))
+	Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year, Tag_area_large) %>%
+	  mutate(mean_lon_tag_area=mean(lo),
+	         mean_lat_tag_area=mean(la))
 
-	### Something is going on.... let's dig a bit more
-		## Release month and location
-			with(Data_mackerel_final, table(Release_month, Tag_area_large))
-			with(Data_mackerel_final, table(Release_month, Tag_area_large, Release_year))
-			with(Data_mackerel_final, table(Release_month, Tag_area))
-			with(Data_mackerel_final, table(Release_month, Tag_area, Release_year))
+	Data_mackerel_final_sameyear <- Data_mackerel_final[which(as.numeric(Data_mackerel_final$Release_year) == as.numeric(Data_mackerel_final$Catch_year)),]
+	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year) %>%
+	  mutate(mean_lon_tag=mean(lo),
+	         mean_lat_tag=mean(la),
+	         mean_lon_recap=mean(cLon),
+	         mean_lat_recap=mean(cLat))
+	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, length_bin) %>%
+	  mutate(mean_lon_recap_size=mean(cLon),
+	         mean_lat_recap_size=mean(cLat))
+	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, length_bin, Tag_area_large) %>%
+	  mutate(mean_lon_recap_size_area=mean(cLon),
+	         mean_lat_recap_size_area=mean(cLat))
+	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, Tag_area_large) %>%
+	  mutate(mean_lon_tag_area=mean(lo),
+	         mean_lat_tag_area=mean(la))
 
-		## Catch month and location
-			with(Data_mackerel_final, table(Catch_month, ices_rectangle))
-			with(Data_mackerel_final, table(Catch_month, recatch_ices_rectangle, Catch_year))
-			with(Data_mackerel_final, table(Catch_month, Tag_area))
-			with(Data_mackerel_final, table(Catch_month, Tag_area, Release_year))
+	Data_mackerel_use_select <- subset(Data_mackerel_final, duration < 365)
+	Data_mackerel_use_select <- Data_mackerel_final_sameyear
 
-		## Release month and length
-			ggplot(Data_mackerel_final, aes(x=Release_month, y=length), alpha=0.5) + geom_boxplot() +
-			facet_grid(Tag_area_large~ Release_year) + theme_bw() #+ coord_flip()
+	Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
 
-		## the duration
-			ggplot(Data_mackerel_final, aes(x=length_bin, y=duration)) + facet_grid(Tag_area_large ~ Release_year) +
-			geom_boxplot() + theme_bw()
+	## Using duration (not standardized) but focusing on within year recapture
+	Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2019)
+	Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
 
-			ggplot(Data_mackerel_final, aes(x=length_bin, y=duration_std)) + facet_grid(Tag_area_large ~ Release_year) +
-			geom_boxplot() + theme_bw()
+	## Do some explanatory analysis to explore what is causing these patterns of residuals
+	mean_tag_area <- Data_mackerel_use_Ireland_select %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
+	mean_diff_tag_area <- as.numeric(abs(mean_tag_area[1,2] - mean_tag_area[2,2]))
 
-			ggplot(Data_mackerel_final, aes(x=length_bin, y=duration_std1)) + facet_grid(Tag_area_large ~ Release_year) +
-			geom_boxplot() + theme_bw()
+	Skip_gam_analysis = TRUE
+	do_plotting = FALSE
+	do_bayesian = FALSE
 
-		# travel distance
-			(ncount_year <- Data_mackerel_final %>% group_by(Release_year,length_bin) %>% count())
-			ggplot(Data_mackerel_final, aes(x=length_bin, y=dist/1000)) + facet_grid(Tag_area_large ~ Release_year) +
-			geom_boxplot() + theme_bw()
+  if (do_plotting == TRUE){
 
-		# travel rate (linear but still)
-			ncount_year <- Data_mackerel_final %>% group_by(Release_year) %>% count()
-			ggplot(Data_mackerel_final, aes(x=length_bin, y=log_rate_annual1)) + facet_grid(Tag_area_large ~ Release_year) +
-			geom_boxplot() + theme_bw()
+    #### Some visual inspection of the tagging data
+    ### How often do mackerel move south
+    ggplot(Data_mackerel_all[which((Data_mackerel_all$la > Data_mackerel_all$cLat) ==TRUE),]) +
+      geom_point(aes(x=lo, y=la)) + geom_point(aes(x=cLon, y=cLat), col="red")
 
-		# length
-			with(Data_mackerel_final, boxplot(length ~ Release_year, ylim=c(0,50), ylab="Mackerel size (cm)"))
-			ncount_year <- Data_mackerel_final %>% group_by(Release_year) %>% count()
-			text(1:9, rep(48, 9), sapply(1:9, function(x) paste0("n=", ncount_year[x,2])), cex=0.9)
+    ### Something is going on.... let's dig a bit more
+    ## Release month and location
+    with(Data_mackerel_final, table(Release_month, Tag_area_large))
+    with(Data_mackerel_final, table(Release_month, Tag_area_large, Release_year))
+    with(Data_mackerel_final, table(Release_month, Tag_area))
+    with(Data_mackerel_final, table(Release_month, Tag_area, Release_year))
 
-#### Some plotting of the tagging location and recapture
-#### Maps + centre of gravity
-	### By Year
-		Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year) %>%
-								mutate(mean_lon_tag=mean(lo),
-									   mean_lat_tag=mean(la),
-									   mean_lon_recap=mean(cLon),
-									   mean_lat_recap=mean(cLat))
-		Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year, length_bin) %>%
-								mutate(mean_lon_recap_size=mean(cLon),
-									   mean_lat_recap_size=mean(cLat))
-		Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year, length_bin, Tag_area_large) %>%
-								mutate(mean_lon_recap_size_area=mean(cLon),
-									   mean_lat_recap_size_area=mean(cLat))
-		Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year, Tag_area_large) %>%
-								mutate(mean_lon_tag_area=mean(lo),
-									   mean_lat_tag_area=mean(la))
+    ## Catch month and location
+    with(Data_mackerel_final, table(Catch_month, ices_rectangle))
+    with(Data_mackerel_final, table(Catch_month, recatch_ices_rectangle, Catch_year))
+    with(Data_mackerel_final, table(Catch_month, Tag_area))
+    with(Data_mackerel_final, table(Catch_month, Tag_area, Release_year))
 
-		Data_mackerel_final_sameyear <- Data_mackerel_final[which(as.numeric(Data_mackerel_final$Release_year) == as.numeric(Data_mackerel_final$Catch_year)),]
-		Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year) %>%
-		  mutate(mean_lon_tag=mean(lo),
-				 mean_lat_tag=mean(la),
-				 mean_lon_recap=mean(cLon),
-				 mean_lat_recap=mean(cLat))
-		Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, length_bin) %>%
-		  mutate(mean_lon_recap_size=mean(cLon),
-				 mean_lat_recap_size=mean(cLat))
-		Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, length_bin, Tag_area_large) %>%
-		  mutate(mean_lon_recap_size_area=mean(cLon),
-				 mean_lat_recap_size_area=mean(cLat))
-		Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, Tag_area_large) %>%
-		  mutate(mean_lon_tag_area=mean(lo),
-				 mean_lat_tag_area=mean(la))
+    ## Release month and length
+    ggplot(Data_mackerel_final, aes(x=Release_month, y=length), alpha=0.5) + geom_boxplot() +
+      facet_grid(Tag_area_large~ Release_year) + theme_bw() #+ coord_flip()
 
-		gg <- list()
-		for (ijk in seq_along(2011:2019))
-		{
-		  gg[[ijk]] <- ggmap(map_area) + geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=lo, y=la)) +
-			+ ggtitle((2011:2019)[ijk]) + theme(plot.title = element_text(hjust = 0.5)) +
-			geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=cLon, y=cLat, col=length_bin), alpha=0.5) +
-			geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_recap_size, y=mean_lat_recap_size, col=length_bin), shape=7, size=5) +
-			geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_tag, y=mean_lat_tag), col="black", shape=7, size=5)
+    ## the duration
+    ggplot(Data_mackerel_final, aes(x=length_bin, y=duration)) + facet_grid(Tag_area_large ~ Release_year) +
+      geom_boxplot() + theme_bw()
 
-		}
+    ggplot(Data_mackerel_final, aes(x=length_bin, y=duration_std)) + facet_grid(Tag_area_large ~ Release_year) +
+      geom_boxplot() + theme_bw()
 
-		grid.arrange(gg[[1]],gg[[2]],gg[[3]],
-					 gg[[4]],gg[[5]],gg[[6]],
-					 gg[[7]],gg[[8]],gg[[9]],
-					 nrow=3, ncol=3)
+    ggplot(Data_mackerel_final, aes(x=length_bin, y=duration_std1)) + facet_grid(Tag_area_large ~ Release_year) +
+      geom_boxplot() + theme_bw()
 
-    ### by year, region and size
-		## all years
-        ggg <- list()
-        for (ijk in seq_along(2011:2019))
-        {
-          ggg[[ijk]] <- ggmap(map_area) + geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=lo, y=la)) +
-            facet_grid(. ~ Tag_area_large) + ggtitle((2011:2019)[ijk]) + theme(plot.title = element_text(hjust = 0.5)) +
-            geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=cLon, y=cLat, col=length_bin), alpha=0.5) +
-            geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_recap_size_area, y=mean_lat_recap_size_area, col=length_bin), shape=7, size=5) +
-            geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_tag_area, y=mean_lat_tag_area), col="black", shape=7, size=5)
-        }
-        grid.arrange(ggg[[1]],ggg[[2]],ggg[[3]],
-                     nrow=3, ncol=1)
-        grid.arrange(ggg[[4]],ggg[[5]],ggg[[6]],
-                     nrow=3, ncol=1)
-        grid.arrange(ggg[[7]],ggg[[8]],ggg[[9]],
-                     nrow=3, ncol=1)
+    # travel distance
+    (ncount_year <- Data_mackerel_final %>% group_by(Release_year,length_bin) %>% count())
+    ggplot(Data_mackerel_final, aes(x=length_bin, y=dist/1000)) + facet_grid(Tag_area_large ~ Release_year) +
+      geom_boxplot() + theme_bw()
 
-		## only 1 year subset
-        gggg <- list()
-        for (ijk in seq_along(2011:2019))
-        {
-          gggg[[ijk]] <- ggmap(map_area) + geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=lo, y=la)) +
-            facet_grid(. ~ Tag_area_large) + ggtitle((2011:2019)[ijk]) + theme(plot.title = element_text(hjust = 0.5)) +
-            geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=cLon, y=cLat, col=length_bin), alpha=0.5) +
-            geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_recap_size_area, y=mean_lat_recap_size_area, col=length_bin), shape=7, size=5) +
-            geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_tag_area, y=mean_lat_tag_area), col="black", shape=7, size=5)
-        }
-        grid.arrange(gggg[[1]],gggg[[2]],gggg[[3]],
-                     nrow=3, ncol=1)
-        grid.arrange(gggg[[4]],gggg[[5]],gggg[[6]],
-                     nrow=3, ncol=1)
-        grid.arrange(gggg[[7]],gggg[[8]],gggg[[9]],
-                     nrow=3, ncol=1)
+    # travel rate (linear but still)
+    ncount_year <- Data_mackerel_final %>% group_by(Release_year) %>% count()
+    ggplot(Data_mackerel_final, aes(x=length_bin, y=log_rate_annual1)) + facet_grid(Tag_area_large ~ Release_year) +
+      geom_boxplot() + theme_bw()
+
+    # length
+    with(Data_mackerel_final, boxplot(length ~ Release_year, ylim=c(0,50), ylab="Mackerel size (cm)"))
+    ncount_year <- Data_mackerel_final %>% group_by(Release_year) %>% count()
+    text(1:9, rep(48, 9), sapply(1:9, function(x) paste0("n=", ncount_year[x,2])), cex=0.9)
 
 
-#### Calculate linear distance between mark and recapture location
-#### Then standardize by number of days in between
-#### Model this with respect to the different covariates
+      #### Some plotting of the tagging location and recapture
+      #### Maps + centre of gravity
+      ### By Year
+      gg <- list()
+      for (ijk in seq_along(2011:2019))
+      {
+        gg[[ijk]] <- ggmap(map_area) + geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=lo, y=la)) +
+          + ggtitle((2011:2019)[ijk]) + theme(plot.title = element_text(hjust = 0.5)) +
+          geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=cLon, y=cLat, col=length_bin), alpha=0.5) +
+          geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_recap_size, y=mean_lat_recap_size, col=length_bin), shape=7, size=5) +
+          geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_tag, y=mean_lat_tag), col="black", shape=7, size=5)
 
-	### Analysis over the whole area: but area west&north of Ireland is the only place with consistent release over the years
+      }
 
-		## Using duration (not standardized)
-		  # m01 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
-		  # m02 <- gam(log_rate ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_final)
-		  # m03 <- gam(log_rate ~ s(length) + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
-		  # m04 <- gam(rate ~ s(length) + s(lo, la) + Release_year, family=gaussian(link="log"), data=Data_mackerel_final)
-		  # m05 <- gam(rate ~ s(length) + s(lo, la) + Release_year, family=Gamma(link = "log"), data=Data_mackerel_final)
-		  # AICtab(m01,m02,m03,m04,m05)
-		  # plot(m03, all.terms=TRUE, residuals=TRUE, pages=1)
-		  # summary(m03)
+      grid.arrange(gg[[1]],gg[[2]],gg[[3]],
+                   gg[[4]],gg[[5]],gg[[6]],
+                   gg[[7]],gg[[8]],gg[[9]],
+                   nrow=3, ncol=3)
 
-		## Using duration (not standardized) but focusing only on within year recapture
-		  Data_mackerel_use_select <- subset(Data_mackerel_final, duration < 365)
-		  Data_mackerel_use_select <- Data_mackerel_final_sameyear
-		  m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
-		  m1 <- gam(log_rate ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
-		  m2 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_select)
-		  m3 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_select)
-		  m4 <- gam(log_rate ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
-		  m5 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_select)
-		  m6 <- gam(log_rate ~ s(lo, la, by= Tag_area) + Release_year + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_select)
-		  AICtab(m1,m2,m3,m4,m5,m6)
-		  plot(m5, all.terms=TRUE, residuals=TRUE, pages=1)
-		  sim_select <- simulateResiduals(fittedModel = m5, n = 1000, integerResponse = FALSE, plot=FALSE)
-		  plot(sim_select, rank=T, quantreg = TRUE)
-		  testResiduals(sim_select)
-		  par(mfrow=c(3,2))
-		  plotResiduals(Data_mackerel_use_select$length, sim_select$scaledResiduals, main = "length")
-		  plotResiduals(Data_mackerel_use_select$Release_month, sim_select$scaledResiduals, main = "Release_month")
-		  plotResiduals(Data_mackerel_use_select$Release_year, sim_select$scaledResiduals, main = "Release_year")
-		  plotResiduals(Data_mackerel_use_select$la, sim_select$scaledResiduals, main = "Latitude")
-		  plotResiduals(Data_mackerel_use_select$lo, sim_select$scaledResiduals, main = "Longitude")
+      ### by year, region and size
+      ## all years
+      ggg <- list()
+      for (ijk in seq_along(2011:2019))
+      {
+        ggg[[ijk]] <- ggmap(map_area) + geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=lo, y=la)) +
+          facet_grid(. ~ Tag_area_large) + ggtitle((2011:2019)[ijk]) + theme(plot.title = element_text(hjust = 0.5)) +
+          geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=cLon, y=cLat, col=length_bin), alpha=0.5) +
+          geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_recap_size_area, y=mean_lat_recap_size_area, col=length_bin), shape=7, size=5) +
+          geom_point(data=subset(Data_mackerel_final, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_tag_area, y=mean_lat_tag_area), col="black", shape=7, size=5)
+      }
+      grid.arrange(ggg[[1]],ggg[[2]],ggg[[3]],
+                   nrow=3, ncol=1)
+      grid.arrange(ggg[[4]],ggg[[5]],ggg[[6]],
+                   nrow=3, ncol=1)
+      grid.arrange(ggg[[7]],ggg[[8]],ggg[[9]],
+                   nrow=3, ncol=1)
 
-		## Using duration_std
-		  # mm1 <- gam(log_rate_annual ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
-		  # mm2 <- gam(log_rate_annual ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_final)
-		  # mm3 <- gam(log_rate_annual ~ s(length) + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
-		  # mm4 <- gam(rate_annual ~ s(length) + s(lo, la) + Release_year, family=gaussian(link="log"), data=Data_mackerel_final)
-		  # mm5 <- gam(rate_annual ~ s(length) + s(lo, la) + Release_year, family=Gamma(link = "log"), data=Data_mackerel_final)
-		  # mm6 <- gam(rate_annual ~ s(length) + s(lo, la, by=Tag_area) + Release_year, family=Gamma(link = "log"), data=Data_mackerel_final)
-		  # mm0 <- gam(log_rate_annual ~ s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
-		  #
-		  # AICtab(mm0, mm1,mm2,mm3,mm4,mm5)
-		  # plot(mm3, all.terms=TRUE, residuals=TRUE, pages=1)
-
-		## Using duration std1
-		  # mmm0 <- gam(log_rate_annual1 ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
-		  # mmm1 <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_final)
-		  # mmm2 <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_final)
-		  # mmm3 <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
-		  # mmm4 <- gam(log_rate_annual1 ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_final)
-		  # mmm5 <- gam(log_rate_annual1 ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_final)
-		  # mmm6 <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area) + s(length) + Release_year + Release_month , family=gaussian, data=Data_mackerel_final)
-		  # mmm7 <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) + Release_year + Release_month , family=gaussian, data=Data_mackerel_final)
-		  # mmm7a <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) + Release_month , family=gaussian, data=Data_mackerel_final)
-		  # mmm7b <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) + Release_year , family=gaussian, data=Data_mackerel_final)
-		  # mmm7c <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) , family=gaussian, data=Data_mackerel_final)
-
-		  # AICtab(mmm0, mmm1,mmm2,mmm3,mmm4,mmm5,mmm6,mmm7,mmm7a,mmm7b,mmm7c)
-		  # plot(mmm7, all.terms=TRUE, residuals=TRUE)
-		  # sim_std1 <- simulateResiduals(fittedModel = mmm4, n = 1000, integerResponse = FALSE, plot=FALSE)
-		  # plot(sim_std1, rank=T, quantreg = TRUE)
-		  # testResiduals(sim_std1)
-		  # par(mfrow=c(3,2))
-		  # plotResiduals(Data_mackerel_final$length, sim_std1$scaledResiduals, main = "length")
-		  # plotResiduals(Data_mackerel_final$Release_month, sim_std1$scaledResiduals, main = "Release_month")
-		  # plotResiduals(Data_mackerel_final$Release_year, sim_std1$scaledResiduals, main = "Release_year")
-		  # plotResiduals(Data_mackerel_final$la, sim_std1$scaledResiduals, main = "Latitude")
-		  # plotResiduals(Data_mackerel_final$lo, sim_std1$scaledResiduals, main = "Longitude")
-
-		#m1a <- gamm(rate ~ s(length) + s(lo, la), random=list(tagger= ~1), family=Gamma, data=Data_mackerel_final)
-		#m2a <- gamm(rate ~ s(length) + s(lo, la) + s(date), random=list(tagger= ~1), family=Gamma, data=Data_mackerel_final)
-		#mm1 <- glmmTMB(log_rate ~ length + mat(pos+0|ID) + Release_year, family=gaussian, data=Data_mackerel_final)
+      ## only 1 year subset
+      gggg <- list()
+      for (ijk in seq_along(2011:2019))
+      {
+        gggg[[ijk]] <- ggmap(map_area) + geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=lo, y=la)) +
+          facet_grid(. ~ Tag_area_large) + ggtitle((2011:2019)[ijk]) + theme(plot.title = element_text(hjust = 0.5)) +
+          geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=cLon, y=cLat, col=length_bin), alpha=0.5) +
+          geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_recap_size_area, y=mean_lat_recap_size_area, col=length_bin), shape=7, size=5) +
+          geom_point(data=subset(Data_mackerel_final_sameyear, Release_year==(2011:2019)[ijk]), aes(x=mean_lon_tag_area, y=mean_lat_tag_area), col="black", shape=7, size=5)
+      }
+      grid.arrange(gggg[[1]],gggg[[2]],gggg[[3]],
+                   nrow=3, ncol=1)
+      grid.arrange(gggg[[4]],gggg[[5]],gggg[[6]],
+                   nrow=3, ncol=1)
+      grid.arrange(gggg[[7]],gggg[[8]],gggg[[9]],
+                   nrow=3, ncol=1)
 
 
-	### Limiting the analysis to releases around Ireland:
 
-		Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
-
-		## Using duration (not standardized) but focusing on within year recapture
-			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2019)
-			Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
-
-			with(Data_mackerel_use_Ireland_select, plot(length, rate))
-			with(Data_mackerel_use_Ireland_select, plot(Tag_area, rate))
-			with(Data_mackerel_use_Ireland_select, plot(Release_timing, rate))
-			with(Data_mackerel_use_Ireland_select, plot(julian_recapture_std, rate))
+  }
 
 
-			m01 <- gam(log_rate ~ s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m02 <- gam(log_rate ~ s(length) + Category, family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m03 <- gam(log_rate ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m04 <- gam(log_rate ~ s(length) + s(lo, la) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m05 <- gam(log_rate ~ length + s(lo, la, by= Release_year) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m06 <- gam(log_rate ~ length + s(lo, la) + Release_year + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m07 <- gam(log_rate ~ length + s(lo, la) + Release_year + s(julian_recapture_std, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+  if (Skip_gam_analysis == FALSE){
 
-			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m1 <- gam(log_rate ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m2 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m3 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m4 <- gam(log_rate ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m5 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m6 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length) , family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m7 <- gam(log_rate ~ s(lo, la, by= Release_year) + length , family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m8 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length, by= Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      #### Calculate linear distance between mark and recapture location
+      #### Then standardize by number of days in between
+      #### Model this with respect to the different covariates
 
-			m10 <- gam(log_rate ~ length + s(lo, la) + s(date, by=Release_year) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m11 <- gam(log_rate ~ length + s(lo, la) + s(date, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m12 <- gam(log_rate ~ length + s(lo, la, by=Release_year) + s(date, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m13 <- gam(log_rate ~ length + s(lo, la, by=Release_year) + s(julian_recapture_std, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      ### Analysis over the whole area: but area west&north of Ireland is the only place with consistent release over the years
+
+      ## Using duration (not standardized)
+      # m01 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
+      # m02 <- gam(log_rate ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_final)
+      # m03 <- gam(log_rate ~ s(length) + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
+      # m04 <- gam(rate ~ s(length) + s(lo, la) + Release_year, family=gaussian(link="log"), data=Data_mackerel_final)
+      # m05 <- gam(rate ~ s(length) + s(lo, la) + Release_year, family=Gamma(link = "log"), data=Data_mackerel_final)
+      # AICtab(m01,m02,m03,m04,m05)
+      # plot(m03, all.terms=TRUE, residuals=TRUE, pages=1)
+      # summary(m03)
+
+      ## Using duration (not standardized) but focusing only on within year recapture
+      m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
+      m1 <- gam(log_rate ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
+      m2 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_select)
+      m3 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_select)
+      m4 <- gam(log_rate ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
+      m5 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_select)
+      m6 <- gam(log_rate ~ s(lo, la, by= Tag_area) + Release_year + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_select)
+      AICtab(m1,m2,m3,m4,m5,m6)
+      plot(m5, all.terms=TRUE, residuals=TRUE, pages=1)
+      sim_select <- simulateResiduals(fittedModel = m5, n = 1000, integerResponse = FALSE, plot=FALSE)
+      plot(sim_select, rank=T, quantreg = TRUE)
+      testResiduals(sim_select)
+      par(mfrow=c(3,2))
+      plotResiduals(Data_mackerel_use_select$length, sim_select$scaledResiduals, main = "length")
+      plotResiduals(Data_mackerel_use_select$Release_month, sim_select$scaledResiduals, main = "Release_month")
+      plotResiduals(Data_mackerel_use_select$Release_year, sim_select$scaledResiduals, main = "Release_year")
+      plotResiduals(Data_mackerel_use_select$la, sim_select$scaledResiduals, main = "Latitude")
+      plotResiduals(Data_mackerel_use_select$lo, sim_select$scaledResiduals, main = "Longitude")
+
+      ## Using duration_std
+      # mm1 <- gam(log_rate_annual ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
+      # mm2 <- gam(log_rate_annual ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_final)
+      # mm3 <- gam(log_rate_annual ~ s(length) + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
+      # mm4 <- gam(rate_annual ~ s(length) + s(lo, la) + Release_year, family=gaussian(link="log"), data=Data_mackerel_final)
+      # mm5 <- gam(rate_annual ~ s(length) + s(lo, la) + Release_year, family=Gamma(link = "log"), data=Data_mackerel_final)
+      # mm6 <- gam(rate_annual ~ s(length) + s(lo, la, by=Tag_area) + Release_year, family=Gamma(link = "log"), data=Data_mackerel_final)
+      # mm0 <- gam(log_rate_annual ~ s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
+      #
+      # AICtab(mm0, mm1,mm2,mm3,mm4,mm5)
+      # plot(mm3, all.terms=TRUE, residuals=TRUE, pages=1)
+
+      ## Using duration std1
+      # mmm0 <- gam(log_rate_annual1 ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
+      # mmm1 <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_final)
+      # mmm2 <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_final)
+      # mmm3 <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_final)
+      # mmm4 <- gam(log_rate_annual1 ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_final)
+      # mmm5 <- gam(log_rate_annual1 ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_final)
+      # mmm6 <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area) + s(length) + Release_year + Release_month , family=gaussian, data=Data_mackerel_final)
+      # mmm7 <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) + Release_year + Release_month , family=gaussian, data=Data_mackerel_final)
+      # mmm7a <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) + Release_month , family=gaussian, data=Data_mackerel_final)
+      # mmm7b <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) + Release_year , family=gaussian, data=Data_mackerel_final)
+      # mmm7c <- gam(log_rate_annual1 ~ s(lo, la, by= Tag_area)  + s(length, by= Release_year) , family=gaussian, data=Data_mackerel_final)
+
+      # AICtab(mmm0, mmm1,mmm2,mmm3,mmm4,mmm5,mmm6,mmm7,mmm7a,mmm7b,mmm7c)
+      # plot(mmm7, all.terms=TRUE, residuals=TRUE)
+      # sim_std1 <- simulateResiduals(fittedModel = mmm4, n = 1000, integerResponse = FALSE, plot=FALSE)
+      # plot(sim_std1, rank=T, quantreg = TRUE)
+      # testResiduals(sim_std1)
+      # par(mfrow=c(3,2))
+      # plotResiduals(Data_mackerel_final$length, sim_std1$scaledResiduals, main = "length")
+      # plotResiduals(Data_mackerel_final$Release_month, sim_std1$scaledResiduals, main = "Release_month")
+      # plotResiduals(Data_mackerel_final$Release_year, sim_std1$scaledResiduals, main = "Release_year")
+      # plotResiduals(Data_mackerel_final$la, sim_std1$scaledResiduals, main = "Latitude")
+      # plotResiduals(Data_mackerel_final$lo, sim_std1$scaledResiduals, main = "Longitude")
+
+      #m1a <- gamm(rate ~ s(length) + s(lo, la), random=list(tagger= ~1), family=Gamma, data=Data_mackerel_final)
+      #m2a <- gamm(rate ~ s(length) + s(lo, la) + s(date), random=list(tagger= ~1), family=Gamma, data=Data_mackerel_final)
+      #mm1 <- glmmTMB(log_rate ~ length + mat(pos+0|ID) + Release_year, family=gaussian, data=Data_mackerel_final)
+
+
+      ### Limiting the analysis to releases around Ireland:
+
+
+      with(Data_mackerel_use_Ireland_select, plot(length, rate))
+      with(Data_mackerel_use_Ireland_select, plot(Tag_area, rate))
+      with(Data_mackerel_use_Ireland_select, plot(Release_timing, rate))
+      with(Data_mackerel_use_Ireland_select, plot(julian_recapture_std, rate))
+
+
+      m01 <- gam(log_rate ~ s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m02 <- gam(log_rate ~ s(length) + Category, family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m03 <- gam(log_rate ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m04 <- gam(log_rate ~ s(length) + s(lo, la) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m05 <- gam(log_rate ~ length + s(lo, la, by= Release_year) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m06 <- gam(log_rate ~ length + s(lo, la) + Release_year + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m07 <- gam(log_rate ~ length + s(lo, la) + Release_year + s(julian_recapture_std, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+
+      m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m1 <- gam(log_rate ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m2 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m3 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m4 <- gam(log_rate ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m5 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m6 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length) , family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m7 <- gam(log_rate ~ s(lo, la, by= Release_year) + length , family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m8 <- gam(log_rate ~ s(lo, la, by= Release_year) + s(length, by= Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
+
+      m10 <- gam(log_rate ~ length + s(lo, la) + s(date, by=Release_year) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m11 <- gam(log_rate ~ length + s(lo, la) + s(date, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m12 <- gam(log_rate ~ length + s(lo, la, by=Release_year) + s(date, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m13 <- gam(log_rate ~ length + s(lo, la, by=Release_year) + s(julian_recapture_std, by=Release_year), family=gaussian, data=Data_mackerel_use_Ireland_select)
 
 
       library(glmmTMB)
-			library(DHARMa)
-			m14 <- glmmTMB(rate ~ length + I(length^2) + Tag_area + Release_year + julian_recapture_std, family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m15 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ I(julian_recapture_std), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			m16 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ julian_recapture_std, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
+      library(DHARMa)
+      m14 <- glmmTMB(rate ~ length + I(length^2) + Tag_area + Release_year + julian_recapture_std, family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m15 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ I(julian_recapture_std), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m16 <- glmmTMB(rate ~ I(log(length)) + I(log(length)^2) + Tag_area + Release_year+ julian_recapture_std, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
 
-			m15b <- glmmTMB(rate ~ length + Tag_area*Release_timing + julian_recapture_std:Release_year, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
+      m15b <- glmmTMB(rate ~ length + Tag_area*Release_timing + julian_recapture_std:Release_year, family=Gamma(link = "log"), data=Data_mackerel_use_Ireland_select)
 
-			m16 <- glmmTMB(log_rate ~ scale(length) + Tag_area*Release_timing + Release_year + scale(julian_recapture_std), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      m16 <- glmmTMB(log_rate ~ scale(length) + Tag_area*Release_timing + Release_year + scale(julian_recapture_std), family=gaussian, data=Data_mackerel_use_Ireland_select)
 
-			AICtab(m1,m2,m3,m4,m5,m6,m7,m8,
-				   m0,m01,m02,m03,m04,m05,m10,m11,m12,m13)
-			bestm <- m16
-			plot(bestm, all.terms=TRUE, residuals=TRUE, pages=1)
-			sim_select <- simulateResiduals(fittedModel = bestm, n = 1000, integerResponse = FALSE, plot=FALSE)
-			plot(sim_select, rank=T, quantreg = TRUE)
-			testResiduals(sim_select)
-			par(mfrow=c(3,2))
-			plotResiduals(Data_mackerel_use_Ireland_select$length, sim_select$scaledResiduals, main = "length")
-			plotResiduals(Data_mackerel_use_Ireland_select$Release_month, sim_select$scaledResiduals, main = "Release_month")
-			plotResiduals(Data_mackerel_use_Ireland_select$Release_year, sim_select$scaledResiduals, main = "Release_year")
-			plotResiduals(Data_mackerel_use_Ireland_select$la, sim_select$scaledResiduals, main = "Latitude")
-			plotResiduals(Data_mackerel_use_Ireland_select$lo, sim_select$scaledResiduals, main = "Longitude")
+      AICtab(m1,m2,m3,m4,m5,m6,m7,m8,
+             m0,m01,m02,m03,m04,m05,m10,m11,m12,m13)
+      bestm <- m16
+      plot(bestm, all.terms=TRUE, residuals=TRUE, pages=1)
+      sim_select <- simulateResiduals(fittedModel = bestm, n = 1000, integerResponse = FALSE, plot=FALSE)
+      plot(sim_select, rank=T, quantreg = TRUE)
+      testResiduals(sim_select)
+      par(mfrow=c(3,2))
+      plotResiduals(Data_mackerel_use_Ireland_select$length, sim_select$scaledResiduals, main = "length")
+      plotResiduals(Data_mackerel_use_Ireland_select$Release_month, sim_select$scaledResiduals, main = "Release_month")
+      plotResiduals(Data_mackerel_use_Ireland_select$Release_year, sim_select$scaledResiduals, main = "Release_year")
+      plotResiduals(Data_mackerel_use_Ireland_select$la, sim_select$scaledResiduals, main = "Latitude")
+      plotResiduals(Data_mackerel_use_Ireland_select$lo, sim_select$scaledResiduals, main = "Longitude")
 
-		## Using duration std1
-			# mmm0_Ireland <- gam(log_rate_annual1 ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland)
-			# mmm01_Ireland <- gam(log_rate_annual1 ~ s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
-			# mmm02_Ireland <- gam(log_rate_annual1 ~ s(length) + Category, family=gaussian, data=Data_mackerel_use_Ireland_select)
-			# mmm03_Ireland <- gam(log_rate_annual1 ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			# mmm04_Ireland <- gam(log_rate_annual1 ~ s(length) + s(lo, la) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			# mmm05_Ireland <- gam(log_rate_annual1 ~ length + s(lo, la, by= Release_year) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			# mmm06_Ireland <- gam(log_rate_annual1 ~ length + s(lo, la) + Release_year + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
-			# AICtab(mmm0_Ireland, mmm01_Ireland,mmm02_Ireland,mmm03_Ireland,mmm04_Ireland,mmm05_Ireland,mmm06_Ireland)
+      ## Using duration std1
+      # mmm0_Ireland <- gam(log_rate_annual1 ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm01_Ireland <- gam(log_rate_annual1 ~ s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
+      # mmm02_Ireland <- gam(log_rate_annual1 ~ s(length) + Category, family=gaussian, data=Data_mackerel_use_Ireland_select)
+      # mmm03_Ireland <- gam(log_rate_annual1 ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      # mmm04_Ireland <- gam(log_rate_annual1 ~ s(length) + s(lo, la) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      # mmm05_Ireland <- gam(log_rate_annual1 ~ length + s(lo, la, by= Release_year) + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      # mmm06_Ireland <- gam(log_rate_annual1 ~ length + s(lo, la) + Release_year + s(date, by=Tag_area), family=gaussian, data=Data_mackerel_use_Ireland_select)
+      # AICtab(mmm0_Ireland, mmm01_Ireland,mmm02_Ireland,mmm03_Ireland,mmm04_Ireland,mmm05_Ireland,mmm06_Ireland)
 
-			# mmm1_Ireland <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland)
-			# mmm2_Ireland <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland)
-			# mmm3_Ireland <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_Ireland)
-			# mmm4_Ireland <- gam(log_rate_annual1 ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland)
-			# mmm5_Ireland <- gam(log_rate_annual1 ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_Ireland)
-			# mmm6_Ireland  <- gam(log_rate_annual1 ~ s(length) + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_Ireland)
-			# mmm7_Ireland  <- gam(log_rate_annual1 ~ s(length, by= Release_year) + s(lo, la, by= Release_year), family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm1_Ireland <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm2_Ireland <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm3_Ireland <- gam(log_rate_annual1 ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm4_Ireland <- gam(log_rate_annual1 ~ s(length, by= Release_year) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm5_Ireland <- gam(log_rate_annual1 ~ s(lo, la, by= Release_year) + s(length) + Release_month , family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm6_Ireland  <- gam(log_rate_annual1 ~ s(length) + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_Ireland)
+      # mmm7_Ireland  <- gam(log_rate_annual1 ~ s(length, by= Release_year) + s(lo, la, by= Release_year), family=gaussian, data=Data_mackerel_use_Ireland)
 
-			# AICtab(mmm0_Ireland, mmm1_Ireland,mmm2_Ireland,mmm3_Ireland,mmm4_Ireland,mmm5_Ireland,mmm6_Ireland,mmm7_Ireland)
+      # AICtab(mmm0_Ireland, mmm1_Ireland,mmm2_Ireland,mmm3_Ireland,mmm4_Ireland,mmm5_Ireland,mmm6_Ireland,mmm7_Ireland)
 
-			# best_m <- mmm05_Ireland
-			# plot(best_m, all.terms=TRUE, residuals=TRUE, pages=1)
-			# sim_std1_Ireland <- simulateResiduals(fittedModel = best_m, n = 1000, integerResponse = FALSE, plot=FALSE)
-			# plot(sim_std1_Ireland, rank=T, quantreg = TRUE)
-			# testResiduals(sim_std1_Ireland)
-			# par(mfrow=c(3,2))
-			# plotResiduals(Data_mackerel_use_Ireland$length, sim_std1_Ireland$scaledResiduals, main = "length")
-			# plotResiduals(Data_mackerel_use_Ireland$Release_month, sim_std1_Ireland$scaledResiduals, main = "Release_month")
-			# plotResiduals(Data_mackerel_use_Ireland$Release_year, sim_std1_Ireland$scaledResiduals, main = "Release_year")
-			# plotResiduals(Data_mackerel_use_Ireland$la, sim_std1_Ireland$scaledResiduals, main = "Latitude")
-			# plotResiduals(Data_mackerel_use_Ireland$lo, sim_std1_Ireland$scaledResiduals, main = "Longitude")
+      # best_m <- mmm05_Ireland
+      # plot(best_m, all.terms=TRUE, residuals=TRUE, pages=1)
+      # sim_std1_Ireland <- simulateResiduals(fittedModel = best_m, n = 1000, integerResponse = FALSE, plot=FALSE)
+      # plot(sim_std1_Ireland, rank=T, quantreg = TRUE)
+      # testResiduals(sim_std1_Ireland)
+      # par(mfrow=c(3,2))
+      # plotResiduals(Data_mackerel_use_Ireland$length, sim_std1_Ireland$scaledResiduals, main = "length")
+      # plotResiduals(Data_mackerel_use_Ireland$Release_month, sim_std1_Ireland$scaledResiduals, main = "Release_month")
+      # plotResiduals(Data_mackerel_use_Ireland$Release_year, sim_std1_Ireland$scaledResiduals, main = "Release_year")
+      # plotResiduals(Data_mackerel_use_Ireland$la, sim_std1_Ireland$scaledResiduals, main = "Latitude")
+      # plotResiduals(Data_mackerel_use_Ireland$lo, sim_std1_Ireland$scaledResiduals, main = "Longitude")
 
-		## Conclusion:
-		## Residual pattern does not look good
+      ## Conclusion:
+      ## Residual pattern does not look good
 
-        ## Do some explanatory analysis to explore what is causing these patterns of residuals
-			mean_tag_area <- Data_mackerel_use_Ireland_select %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
-			mean_diff_tag_area <- as.numeric(abs(mean_tag_area[1,2] - mean_tag_area[2,2]))
 
-			with(Data_mackerel_use_Ireland_select, plot(length, log_rate))
-			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(length, log_rate))
-			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(length, log_rate))
-			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(date, log_rate))
-			with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(date, log_rate))
-			ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area)
-			ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area) + geom_hline(yintercept = mean_diff_tag_area+ 8.7)+ geom_hline(yintercept =  8.7)
+      with(Data_mackerel_use_Ireland_select, plot(length, log_rate))
+      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(length, log_rate))
+      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(length, log_rate))
+      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(date, log_rate))
+      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(date, log_rate))
+      ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area)
+      ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area) + geom_hline(yintercept = mean_diff_tag_area+ 8.7)+ geom_hline(yintercept =  8.7)
 
-			brr <- subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland")
-			brr$col <- ifelse(brr$log_rate<8.9,"red", ifelse(brr$log_rate>9.7, "blue", "purple"))
-			ggmap(map_area) + geom_point(data=brr, aes(x=cLon, y=cLat, col=col), size=1)
-			brr1 <- subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland")
-			brr1$col <- ifelse(brr1$log_rate<(8.9-mean_diff_tag_area),"red", "purple")
-			ggmap(map_area) + geom_point(data=brr1, aes(x=cLon, y=cLat, col=col), size=1)
+      brr <- subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland")
+      brr$col <- ifelse(brr$log_rate<8.9,"red", ifelse(brr$log_rate>9.7, "blue", "purple"))
+      ggmap(map_area) + geom_point(data=brr, aes(x=cLon, y=cLat, col=col), size=1)
+      brr1 <- subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland")
+      brr1$col <- ifelse(brr1$log_rate<(8.9-mean_diff_tag_area),"red", "purple")
+      ggmap(map_area) + geom_point(data=brr1, aes(x=cLon, y=cLat, col=col), size=1)
 
-			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="red"))
-			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
-			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="blue"))
-			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
-			m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="purple"))
-			simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
+      m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="red"))
+      simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
+      m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="blue"))
+      simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
+      m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=subset(brr, col=="purple"))
+      simulateResiduals(fittedModel = m0, n = 1000, integerResponse = FALSE, plot=TRUE)
 
-        ## This makes me think that I might need to develop a changepoint model (with K components)
+
+
+  }
+
+
+	  ## This makes me think that I might need to develop a changepoint model (with K components)
 		## I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
 		## A Bayesian change point model has therefore been developped below
 			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland_select, Release_year %in% 2014:2019)
 			Data_mackerel_use_Ireland_select$ID <- 1:nrow(Data_mackerel_use_Ireland_select)
-			test <- Data_mackerel_use_Ireland_select
-			test <- test[order(test$log_rate),]
 
-			m1 <- lm(log_rate ~ factor(Tag_area) + factor(Release_timing) + length:factor(Release_year), data=Data_mackerel_use_Ireland_select)
+			# Rescaling parameters to ease interpretation
+			Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
+			Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$length)
+
+
+
+			# Choice of the design matrix
+			m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
 			m_frame <- model.frame(m1)
 			XX <- model.matrix(m1, m_frame)
 
-			# these are the change points values (not using the whole data to speed up the computing time)
+			# Choice of threshold values: Either the travel distance or the time of the year
 			yyy <- Data_mackerel_use_Ireland_select$log_rate
-			threshold_vals <-  as.numeric(quantile(yyy, seq(0.1, 0.9, by=0.05)))
-			threshold_vals_group <- cut(test$log_rate, c(0, threshold_vals, 100))
+			Data_mackerel_use_Ireland_select$julian_release <-  as.numeric(julian(Data_mackerel_use_Ireland_select$relesedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
+			Data_mackerel_use_Ireland_select$julian <-  as.numeric(julian(Data_mackerel_use_Ireland_select$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
+			Data_mackerel_use_Ireland_select$julian_std <-  Data_mackerel_use_Ireland_select$julian %% 365
+			yyy1 <- Data_mackerel_use_Ireland_select$julian_std
+			threshold_vals <- as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.05)))
+			threshold_vals_group <- cut(Data_mackerel_use_Ireland_select$julian_std, c(0, threshold_vals, 365))
 			threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
 			threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
 			threshold_vals_group_end <- c(which(diff(threshold_vals_group, lag=1) == 1), length(threshold_vals_group))
 
-			# With 2 groups
-				Data <- list(
-				  K=2,  # number of mixture components
-				  N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
-				  Nx=ncol(XX),   # the fixed effect part
-				  X=XX,          # the design matrix for the fixed effect
-				  Nthres=length(threshold_vals),
-				  thresh=threshold_vals,
-				  thresh_start=threshold_vals_group_start,
-				  thresh_end=threshold_vals_group_end,
-				  mean_diff_tag_area= mean_diff_tag_area,
-				  is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
-				  y = Data_mackerel_use_Ireland_select$log_rate
-				)
 
-				library(rstan)
-				options(mc.cores = 3)
-				rstan_options(auto_write = TRUE)
-				mixture_mod <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold.stan"), data = Data,
-									iter = 20000 , warmup=15000 , chains = 3, thin=10,
-									control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
-				# the use of dynamic programming to linearise the problem... does not work too well...
-				mixture_moda <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold_dp.stan"), data = Data,
-									iter = 5000 , warmup=3500 , chains = 3, thin=10,
-									control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
+  if(do_bayesian == TRUE){
 
-			# With 3 groups (computer is struggling)
-				Data3 <- list(
-				  K=3,  # number of mixture components
-				  N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
-				  Nx=ncol(XX),   # the fixed effect part
-				  X=XX,          # the design matrix for the fixed effect
-				  Nthres=length(threshold_vals),
-				  thresh=threshold_vals,
-				  thresh_start=threshold_vals_group_start,
-				  thresh_end=threshold_vals_group_end,
-				  mean_diff_tag_area= mean_diff_tag_area,
-				  is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
-				  y = Data_mackerel_use_Ireland_select$log_rate
-				)
+    # With 2 groups
+    Data <- list(
+      K=2,  # number of mixture components
+      N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+      Nx=ncol(XX),   # the fixed effect part
+      X=XX,          # the design matrix for the fixed effect
+      Nthres=length(threshold_vals),
+      thresh=threshold_vals,
+      thresh_start=threshold_vals_group_start,
+      thresh_end=threshold_vals_group_end,
+      mean_diff_tag_area= mean_diff_tag_area,
+      is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+      y = Data_mackerel_use_Ireland_select$log_rate
+    )
 
-				set.seed(1)
-				inits1 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
-				inits2 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
-				inits3 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
+    library(rstan)
+    options(mc.cores = 3)
+    rstan_options(auto_write = TRUE)
+    mixture_mod <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold.stan"), data = Data,
+                         iter = 20000 , warmup=15000 , chains = 3, thin=10,
+                         control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
+    # the use of dynamic programming to linearise the problem... does not work too well...
+    mixture_moda <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold_dp.stan"), data = Data,
+                          iter = 5000 , warmup=3500 , chains = 3, thin=10,
+                          control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
 
-				inits_gen <- function(chain_id = 1) {
-				  list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
-					   sigma=runif(3,0.1,0.5)) #,
-					   # mu=XX %*% inits1$beta,
-					   # lp=rep(0, length(threshold_vals)))
-				}
-				init_ll <- lapply(1, function(id) inits_gen(chain_id = id))
+    # With 3 groups (computer is struggling)
+    Data3 <- list(
+      K=3,  # number of mixture components
+      N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+      Nx=ncol(XX),   # the fixed effect part
+      X=XX,          # the design matrix for the fixed effect
+      Nthres=length(threshold_vals),
+      thresh=threshold_vals,
+      thresh_start=threshold_vals_group_start,
+      thresh_end=threshold_vals_group_end,
+      mean_diff_tag_area= mean_diff_tag_area,
+      is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+      y = Data_mackerel_use_Ireland_select$log_rate
+    )
+
+    set.seed(1)
+    inits1 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
+    inits2 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
+    inits3 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
+
+    inits_gen <- function(chain_id = 1) {
+      list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
+           sigma=runif(3,0.1,0.5)) #,
+      # mu=XX %*% inits1$beta,
+      # lp=rep(0, length(threshold_vals)))
+    }
+    init_ll <- lapply(1, function(id) inits_gen(chain_id = id))
 
 
-				library(rstan)
-				options(mc.cores = 3)
-				rstan_options(auto_write = TRUE)
-				mixture_mod3 <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks.stan"), data = Data3,
-									 iter = 5000 , warmup=3500 , chains = 3, thin=10,
-									 control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
-				# the use of dynamic programming to linearise the problem... does not work too well...
-				mixture_mod3b <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks_dp.stan"), data = Data3,
-									 iter = 500, warmup=350, chains = 1, thin=10,
-									 #init=init_ll,
-									 control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
+    library(rstan)
+    options(mc.cores = 3)
+    rstan_options(auto_write = TRUE)
+    mixture_mod3 <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks.stan"), data = Data3,
+                          iter = 5000 , warmup=3500 , chains = 3, thin=10,
+                          control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
+    # the use of dynamic programming to linearise the problem... does not work too well...
+    mixture_mod3b <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks_dp.stan"), data = Data3,
+                           iter = 500, warmup=350, chains = 1, thin=10,
+                           #init=init_ll,
+                           control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
 
-			# Some model checking + residual analysis of the Bayesian model
-				library(shinystan)
-				launch_shinystan(mixture_mod)
-				check_hmc_diagnostics(mixture_mod)     # need no warning
-				get_low_bfmi_chains(mixture_mod)
-				stan_diag(mixture_mod)
-				stan_rhat(mixture_mod)
+    # Some model checking + residual analysis of the Bayesian model
+    library(shinystan)
+    launch_shinystan(mixture_mod)
+    check_hmc_diagnostics(mixture_mod)     # need no warning
+    get_low_bfmi_chains(mixture_mod)
+    stan_diag(mixture_mod)
+    stan_rhat(mixture_mod)
 
-				sampler_params <- get_sampler_params(mixture_mod, inc_warmup = FALSE)
-				sampler_params_chain1 <- sampler_params[[1]]
-				colnames(sampler_params_chain1)
-				mean_accept_stat_by_chain <- sapply(sampler_params, function(x) mean(x[, "accept_stat__"]))
-				print(mean_accept_stat_by_chain)
-				max_treedepth_by_chain <- sapply(sampler_params, function(x) max(x[, "treedepth__"]))
-				print(max_treedepth_by_chain)
+    sampler_params <- get_sampler_params(mixture_mod, inc_warmup = FALSE)
+    sampler_params_chain1 <- sampler_params[[1]]
+    colnames(sampler_params_chain1)
+    mean_accept_stat_by_chain <- sapply(sampler_params, function(x) mean(x[, "accept_stat__"]))
+    print(mean_accept_stat_by_chain)
+    max_treedepth_by_chain <- sapply(sampler_params, function(x) max(x[, "treedepth__"]))
+    print(max_treedepth_by_chain)
 
-				summary(mixture_mod)$summary
+    summary(mixture_mod)$summary
 
-				LP <- extract(mixture_mod, pars="lp")
-				LP_mean <- apply(exp(LP$lp), 2, mean)
+    LP <- extract(mixture_mod, pars="lp")
+    LP_mean <- apply(exp(LP$lp), 2, mean)
 
-				windows()
-				plot(Data$thresh, LP_mean)
-				best_LP <- which(LP_mean == max(LP_mean))
-				(threshold <- Data$thresh[best_LP])
+    windows()
+    plot(Data$thresh, LP_mean)
+    best_LP <- which(LP_mean == max(LP_mean))
+    (threshold <- Data$thresh[best_LP])
 
-				par_list <- c("y_gen")
-				y_pred <- rstan::extract(mixture_mod, pars=par_list,inc_warmup=FALSE, permuted=FALSE)
-				#essai <- array(y_pred[,1,], dim=c(200,17,903))[,best_LP,]
-				y_pred_new <- rbind(apply(array(y_pred[,1,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
-									apply(array(y_pred[,2,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
-									apply(array(y_pred[,3,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))))
-				y_pred_summary <- data.frame(n=rep(seq(1,250),4)[1:length(Data$y)], ID = seq_along(Data$y), obs = Data$y,mean=apply(y_pred_new,2,mean), l95=apply(y_pred_new, 2, function(x) quantile(x,0.025)), u95=apply(y_pred_new, 2, function(x) quantile(x,0.975)))
-				y_pred_summary$Cat <- cut(y_pred_summary$ID, seq(0,1000,by=250))
-				head(y_pred_summary)
-				ggplot(y_pred_summary, aes(x=n, y=obs)) + geom_point(col="red") +
-				  geom_errorbar(aes(x=n, ymin=l95, ymax=u95)) + theme_bw() + facet_grid(Cat~., scales="free")
+    par_list <- c("y_gen")
+    y_pred <- rstan::extract(mixture_mod, pars=par_list,inc_warmup=FALSE, permuted=FALSE)
+    #essai <- array(y_pred[,1,], dim=c(200,17,903))[,best_LP,]
+    y_pred_new <- rbind(apply(array(y_pred[,1,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
+                        apply(array(y_pred[,2,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
+                        apply(array(y_pred[,3,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))))
+    y_pred_summary <- data.frame(n=rep(seq(1,250),4)[1:length(Data$y)], ID = seq_along(Data$y), obs = Data$y,mean=apply(y_pred_new,2,mean), l95=apply(y_pred_new, 2, function(x) quantile(x,0.025)), u95=apply(y_pred_new, 2, function(x) quantile(x,0.975)))
+    y_pred_summary$Cat <- cut(y_pred_summary$ID, seq(0,1000,by=250))
+    head(y_pred_summary)
+    ggplot(y_pred_summary, aes(x=n, y=obs)) + geom_point(col="red") +
+      geom_errorbar(aes(x=n, ymin=l95, ymax=u95)) + theme_bw() + facet_grid(Cat~., scales="free")
 
-				# residual analysis
-				plot(y_pred_summary$ID, (y_pred_summary$mean-y_pred_summary$obs)/y_pred_summary$mean)
-				abline(h=0, lty=2)
-				qqnorm(y=(y_pred_summary$mean-y_pred_summary$obs)/sd((y_pred_summary$mean-y_pred_summary$obs)))
-				abline(0,1, lty=2)
+    # residual analysis
+    plot(y_pred_summary$ID, (y_pred_summary$mean-y_pred_summary$obs)/y_pred_summary$mean)
+    abline(h=0, lty=2)
+    qqnorm(y=(y_pred_summary$mean-y_pred_summary$obs)/sd((y_pred_summary$mean-y_pred_summary$obs)))
+    abline(0,1, lty=2)
 
-				# Plot marginal effects
-				Beta_estimates <- summary(mixture_mod)$summary[grep("beta", rownames(summary(mixture_mod)$summary)),]
-				group1 <- Beta_estimates[seq(1,20,by=2),]
-				group2 <- Beta_estimates[seq(2,20,by=2),]
-				aaa <- cbind(group1[,1], group2[,1])
-				rownames(aaa) <- colnames(XX)
-        print(aaa)
+    # Plot marginal effects
+    Beta_estimates <- summary(mixture_mod)$summary[grep("beta", rownames(summary(mixture_mod)$summary)),]
+    group1 <- Beta_estimates[seq(1,20,by=2),]
+    group2 <- Beta_estimates[seq(2,20,by=2),]
+    aaa <- cbind(group1[,1], group2[,1])
+    rownames(aaa) <- colnames(XX)
+    print(aaa)
+
+
+
+  }
 
 
 		## Now doing the same model but using TMB
-
-        # Rescaling parameters to ease interpretation
-        Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
-        Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$length)
-
-        # Choice of the design matrix
-        m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
-        m_frame <- model.frame(m1)
-        XX <- model.matrix(m1, m_frame)
-
-
-        # Choice of threshold values: Either the travel distance or the time of the year
-        yyy <- Data_mackerel_use_Ireland_select$log_rate
-        Data_mackerel_use_Ireland_select$julian_release <-  as.numeric(julian(Data_mackerel_use_Ireland_select$relesedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
-        Data_mackerel_use_Ireland_select$julian <-  as.numeric(julian(Data_mackerel_use_Ireland_select$recapturedate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
-        Data_mackerel_use_Ireland_select$julian_std <-  Data_mackerel_use_Ireland_select$julian %% 365
-        yyy1 <- Data_mackerel_use_Ireland_select$julian_std
-        threshold_vals <- as.numeric(quantile(yyy1, seq(0.1, 0.9, by=0.05)))
-        threshold_vals_group <- cut(Data_mackerel_use_Ireland_select$julian_std, c(0, threshold_vals, 365))
-        threshold_vals_group <- as.numeric(as.character(factor(threshold_vals_group, labels=1:(length(threshold_vals)+1))))
-        threshold_vals_group_start <- c(1, which(diff(threshold_vals_group, lag=1) == 1)+1)
-        threshold_vals_group_end <- c(which(diff(threshold_vals_group, lag=1) == 1), length(threshold_vals_group))
-
-
 
         # no threshold model
         use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh")

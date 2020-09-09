@@ -1,6 +1,15 @@
-library(caret)
 N_cross = 100
 P_cross <- 0.9
+
+# Just in case you have not compiled and loaded the model
+use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh")
+compile(paste0(use_version_simple, ".cpp"))
+dyn.load(use_version_simple)
+
+use_version <- paste0(getwd(), "/src/mackerel_mvt_model")
+compile(paste0(use_version, ".cpp"))
+dyn.load(use_version)
+
 
 cross_validation <- function(x){
   set.seed(x)

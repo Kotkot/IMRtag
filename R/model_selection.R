@@ -16,6 +16,8 @@ data_tmb <- list(K=N_threshold,  # number of mixture components
                  is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
                  thres_cov = Data_mackerel_use_Ireland_select$julian_std,
                  y = Data_mackerel_use_Ireland_select$log_rate,
+                 X_pred =as.matrix(as.data.frame(XX)),
+                 N_pred =nrow(Data_mackerel_use_Ireland_select),
                  Likconfig = 0      # 0 = dnorm, 1 = dgamma
 )
 
