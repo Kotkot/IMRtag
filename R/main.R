@@ -170,6 +170,8 @@ source("R/download_data_functions.R")
 	Skip_gam_analysis = TRUE
 	do_plotting = FALSE
 	do_bayesian = FALSE
+	model_choice = "lme"   # choice of "lm" or "lme"
+
 
   if (do_plotting == TRUE){
 
@@ -278,7 +280,6 @@ source("R/download_data_functions.R")
 
 
   }
-
 
   if (Skip_gam_analysis == FALSE){
 
@@ -490,8 +491,6 @@ source("R/download_data_functions.R")
 			Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
 			Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$length)
 
-
-
 			# Choice of the design matrix
 			m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
 			m_frame <- model.frame(m1)
@@ -510,7 +509,7 @@ source("R/download_data_functions.R")
 			threshold_vals_group_end <- c(which(diff(threshold_vals_group, lag=1) == 1), length(threshold_vals_group))
 
 
-  if(do_bayesian == TRUE){
+      if(do_bayesian == TRUE){
 
     # With 2 groups
     Data <- list(
@@ -639,9 +638,14 @@ source("R/download_data_functions.R")
 		## Now doing the same model but using TMB
 
         # no threshold model
-            use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh")
+			    if (model_choice == "lm"){
+			      use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh")
             compile(paste0(use_version_simple, ".cpp"))
             dyn.load(use_version_simple)
+
+            m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
+            m_frame <- model.frame(m1)
+            XX <- model.matrix(m1, m_frame)
 
             N_threshold <- 1
             data_tmb <- list(N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
@@ -658,12 +662,7 @@ source("R/download_data_functions.R")
             )
 
             Map = list()
-
-            op <- getwd()
-            setwd(paste0(getwd(),"/src"))
             obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_nothresh", map=Map)
-            setwd(op)
-
             opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
             opt$objective * 2 + 2 * length(opt$par)
 
@@ -672,19 +671,119 @@ source("R/download_data_functions.R")
             for(k in 1:(nrow(Maps_nothres)-1)){
                 Map = list()
                 Map$beta <- factor(Maps_nothres[k,])
-                Map$log_sigma <- factor(c(2*ncol(XX)+1))
+                Map$log_sigma <- factor(c(ncol(XX)+1))
 
                 #-- optimize-- :
                 obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_nothresh", map=Map)
                 opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
                                       control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
+                map <- as.numeric(c(as.character(Map$beta), (length(opt$par))))
+                AIC_nothres[k] <- opt$objective * 2 + p * length(opt$par)
+                # only removing 1
+                mle <- sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt$par[Map$beta[x]], NA))
+                cov <- solve(obj$he(opt$par))
+                sde <- sqrt(diag(cov))
+                pvalue_diff <- function(i){
+                  if (! TRUE %in% mle[i,]) out <- 2*pnorm(abs(diff(mle[i,])), 0, sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)]), lower.tail = FALSE)
+                  if (TRUE %in% mle[i,]) out <- NA
+                  return(out)
+                }
+                j <- which.max(2*pnorm(abs(opt$par)/sde, lower.tail = FALSE)[-(length(opt$par))])
+                j.corrected <- as.numeric(map[!is.na(map) & !duplicated(map)][j])
+                Maps_nothres[(k+1):nrow(Maps_nothres), j.corrected] <- NA_real_
+                parameters_tmb$beta[ifelse(j<=ncol(XX),j,j-ncol(XX)),ifelse(j/ncol(XX)>1,2,1)] <- 0
+              }
+
+              best_mod <- which.min(AIC_nothres)
+              Map = list()
+              Map$beta <- factor(Maps_nothres[best_mod,])
+              Map$log_sigma <- factor(c(2*ncol(XX)+1))
+              parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+                                     log_sigma = rep(log(0.2),N_threshold))
+              parameters_tmb$beta[which(is.na(Maps_nothres[best_mod,]))] <- 0
+
+              obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_nothresh", map=Map)
+              opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                              control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+
+
+              sd_report <- sdreport(obj)
+              Check_Identifiable(obj)
+              sigma <- as.vector(exp(summary(sd_report, "fixed")[grep("log_sigma", rownames(summary(sd_report, "fixed"))),1]))
+              mu_pred <- matrix(summary(sd_report, "report")[grep("mu_pred", rownames(summary(sd_report, "report"))),1], ncol=1, byrow=FALSE)
+
+              par(mfrow=c(2,1), mar=c(4,3,1,1), oma=c(1,1,1,1))
+              plot(mu_pred, data_tmb$y); abline(0,1)
+              qqnorm(y=(mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y), xlim=c(-3.5,3.5),ylim=c(-3.5,3.5))
+              abline(0,1, lty=2)
+
+               ## Now producing the residual vs predictor
+              opt_resid <- (mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y)
+              par(mfrow=c(3,2))
+              plot(Data_mackerel_use_Ireland_select$length, opt_resid); abline(h=0, lty=2)
+              plot(as.factor(Data_mackerel_use_Ireland_select$Tag_area), opt_resid); abline(h=0, lty=2)
+              plot(as.factor(Data_mackerel_use_Ireland_select$Release_timing), opt_resid); abline(h=0, lty=2)
+              plot(Data_mackerel_use_Ireland_select$Release_year, opt_resid); abline(h=0, lty=2)
+              plot(Data_mackerel_use_Ireland_select$julian_recapture_std, opt_resid); abline(h=0, lty=2)
+
+			    }
+
+			    if (model_choice == "lme"){
+			      use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh_RE")
+            compile(paste0(use_version_simple, ".cpp"))
+            dyn.load(use_version_simple)
+
+            m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
+            m_frame <- model.frame(m1)
+            XX <- model.matrix(m1, m_frame)
+
+            N_threshold <- 1
+            data_tmb <- list(N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+                             X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
+                             Nthres=length(threshold_vals),
+                             y = Data_mackerel_use_Ireland_select$log_rate,
+                             X_pred =as.matrix(as.data.frame(XX)),
+                             N_pred =nrow(Data_mackerel_use_Ireland_select),
+                             N_year = length(unique(Data_mackerel_use_Ireland_select$Release_year)),
+                             Year_ID = as.numeric(as.character(Data_mackerel_use_Ireland_select$Release_year))-2014,
+                             Year_ID_pred = as.numeric(as.character(Data_mackerel_use_Ireland_select$Release_year))-2014,
+                             Likconfig = 0      # 0 = dnorm, 1 = dgamma
+            )
+
+            parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+                                   log_sigma = log(0.2),
+                                   year = rep(0, length(unique(Data_mackerel_use_Ireland_select$Release_year))),
+                                   log_sigma_year = log(0.2)
+            )
+
+            Map = list()
+
+            obj <- MakeADFun(data_tmb, parameters_tmb, random = "year", DLL = "mackerel_mvt_model_nothresh_RE", map=Map)
+            opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+            opt$objective * 2 + 2 * length(opt$par)
+
+            AIC_nothres <- c()
+            Maps_nothres <- matrix(1:(ncol(XX)), ncol = (ncol(XX)), nrow =ncol(XX)+1,byrow=TRUE)
+            for(k in 1:(nrow(Maps_nothres)-1)){
+                Map = list()
+                Map$beta <- factor(Maps_nothres[k,])
+                Map$log_sigma <- factor(c(ncol(XX)+1))
+                Map$year <- factor(ncol(XX)+1+1:length(parameters_tmb$year))
+                Map$log_sigma_year <- factor(ncol(XX)+8)
+
+                #-- optimize-- :
+                obj <- MakeADFun(data_tmb, parameters_tmb, random = "year", DLL = "mackerel_mvt_model_nothresh_RE", map=Map)
+                opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                                      control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+
                 map <- as.numeric(c(as.character(Map$beta), (length(opt$par)-c(1,0))))
                 AIC_nothres[k] <- opt$objective * 2 + p * length(opt$par)
                 # only removing 1
-                mle <- matrix(sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt$par[Map$beta[x]], NA)), byrow=F, ncol=2)
-                cov <- solve(obj$he(opt$par))
-                sde <- sqrt(diag(cov))
+                mle <- sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt$par[Map$beta[x]], NA))
+                sdrep <- sdreport(obj)
+                cov <- sdrep$cov.fixed
+                sde <- summary(sdrep, "fixed")[,2]
                 pvalue_diff <- function(i){
                   if (! TRUE %in% mle[i,]) out <- 2*pnorm(abs(diff(mle[i,])), 0, sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)]), lower.tail = FALSE)
                   if (TRUE %in% mle[i,]) out <- NA
@@ -696,88 +795,55 @@ source("R/download_data_functions.R")
                 parameters_tmb$beta[ifelse(j<=ncol(XX),j,j-ncol(XX)),ifelse(j/ncol(XX)>1,2,1)] <- 0
               }
 
-            best_mod <- which.min(AIC_nothres)
-            Map = list()
-            Map$beta <- factor(Maps_nothres[best_mod,])
-            Map$log_sigma <- factor(c(2*ncol(XX)+1))
-            parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
-                                   log_sigma = rep(log(0.2),N_threshold))
-            parameters_tmb$beta[which(is.na(Maps_nothres[best_mod,]))] <- 0
+              best_mod <- which.min(AIC_nothres)
+              Map = list()
+              Map$beta <- factor(Maps_nothres[best_mod,])
+              Map$log_sigma <- factor(c(2*ncol(XX)+1))
+              Map$year <- factor(ncol(XX)+1+1:length(parameters_tmb$year))
+              Map$log_sigma_year <- factor(ncol(XX)+8)
+              parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+                                     log_sigma = log(0.2),
+                                     year = rep(0, length(unique(Data_mackerel_use_Ireland_select$Release_year))),
+                                     log_sigma_year = log(0.2)
+              )
+              parameters_tmb$beta[which(is.na(Maps_nothres[best_mod,]))] <- 0
 
-            obj <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model_nothresh", map=Map)
-            opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
-                            control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+              obj <- MakeADFun(data_tmb, parameters_tmb, random = "year", DLL = "mackerel_mvt_model_nothresh_RE", map=Map)
+              opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                              control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
 
-            sd_report <- sdreport(obj)
-            Check_Identifiable(obj)
-            sigma <- as.vector(exp(summary(sd_report, "fixed")[grep("log_sigma", rownames(summary(sd_report, "fixed"))),1]))
-            mu_pred <- matrix(summary(sd_report, "report")[grep("mu_pred", rownames(summary(sd_report, "report"))),1], ncol=1, byrow=FALSE)
+              sd_report <- sdreport(obj)
+              Check_Identifiable(obj)
+              sigma <- as.vector(exp(summary(sd_report, "fixed")[grep("log_sigma", rownames(summary(sd_report, "fixed"))),1]))
+              mu_pred <- matrix(summary(sd_report, "report")[grep("mu_pred", rownames(summary(sd_report, "report"))),1], ncol=1, byrow=FALSE)
 
-            par(mfrow=c(2,1), mar=c(4,3,1,1), oma=c(1,1,1,1))
-            plot(mu_pred, data_tmb$y); abline(0,1)
-            qqnorm(y=(mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y), xlim=c(-3.5,3.5),ylim=c(-3.5,3.5))
-            abline(0,1, lty=2)
+              par(mfrow=c(2,1), mar=c(4,3,1,1), oma=c(1,1,1,1))
+              plot(mu_pred, data_tmb$y); abline(0,1)
+              qqnorm(y=(mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y), xlim=c(-3.5,3.5),ylim=c(-3.5,3.5))
+              abline(0,1, lty=2)
 
-             ## Now producing the residual vs predictor
-            opt_resid <- (mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y)
-            par(mfrow=c(3,2))
-            plot(Data_mackerel_use_Ireland_select$length, opt_resid); abline(h=0, lty=2)
-            plot(as.factor(Data_mackerel_use_Ireland_select$Tag_area), opt_resid); abline(h=0, lty=2)
-            plot(as.factor(Data_mackerel_use_Ireland_select$Release_timing), opt_resid); abline(h=0, lty=2)
-            plot(Data_mackerel_use_Ireland_select$Release_year, opt_resid); abline(h=0, lty=2)
-            plot(Data_mackerel_use_Ireland_select$julian_recapture_std, opt_resid); abline(h=0, lty=2)
+               ## Now producing the residual vs predictor
+              opt_resid <- (mu_pred-data_tmb$y)/sd(mu_pred-data_tmb$y)
+              par(mfrow=c(3,2))
+              plot(Data_mackerel_use_Ireland_select$length, opt_resid); abline(h=0, lty=2)
+              plot(as.factor(Data_mackerel_use_Ireland_select$Tag_area), opt_resid); abline(h=0, lty=2)
+              plot(as.factor(Data_mackerel_use_Ireland_select$Release_timing), opt_resid); abline(h=0, lty=2)
+              plot(Data_mackerel_use_Ireland_select$Release_year, opt_resid); abline(h=0, lty=2)
+              plot(Data_mackerel_use_Ireland_select$julian_recapture_std, opt_resid); abline(h=0, lty=2)
 
+			    }
 
 
         # A single change point model
+    				# model selection for the single break point model
+    				  if (model_choice == "lm") source(paste0(getwd(), "/R/model_selection.R"))
+    				  if (model_choice == "lme") source(paste0(getwd(), "/R/model_selection_RE.R"))
 
-    				use_version <- paste0(getwd(), "/src/mackerel_mvt_model")
-    				compile(paste0(use_version, ".cpp"))
-    				dyn.load(use_version)
-
-    				N_threshold <- 2
-    				data_tmb <- list(K=N_threshold,  # number of mixture components
-    								 N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
-    								 X=as.matrix(as.data.frame(XX)),          # the design matrix for the fixed effect
-    								 Nthres=length(threshold_vals),
-    								 thresh=threshold_vals,
-    								 mean_diff_tag_area= mean_diff_tag_area,
-    								 is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
-    								 thres_cov = Data_mackerel_use_Ireland_select$julian_std,
-    								 y = Data_mackerel_use_Ireland_select$log_rate,
-    								 X_pred =as.matrix(as.data.frame(XX)),
-    								 N_pred =nrow(Data_mackerel_use_Ireland_select),
-    								 Likconfig = 0      # 0 = dnorm, 1 = dgamma
-    								 )
-
-    				parameters_tmb <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
-    									   log_sigma = rep(log(0.2),N_threshold)
-    									   )
-
-    				Map = list()
-
-    				op <- getwd()
-    				setwd(paste0(getwd(),"/src"))
-    				obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
-    				setwd(op)
-
-    				set.seed(1)
-    				rm(opt1break)
-    				data_tmb$Likconfig = 0
-    				obj1break <- MakeADFun(data_tmb, parameters_tmb, random = NULL, DLL = "mackerel_mvt_model", map=Map)
-    				opt1break <- fit_tmb( obj=obj1break, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
-
-    				### Now performing the model selection for the
-    				source(paste0(getwd(), "/R/model_selection.R"))
-
-
-    				sd_report_1break_best <- sdreport(obj1break_best)
-    				Check_Identifiable(obj1break_best)
-    				sigma <- as.vector(exp(summary(sd_report_1break_best, "fixed")[grep("log_sigma", rownames(summary(sd_report_1break_best, "fixed"))),1]))
-    				mu_pred <- matrix(summary(sd_report_1break_best, "report")[grep("mu_pred", rownames(summary(sd_report_1break_best, "report"))),1], ncol=2, byrow=FALSE)
-
-    				cov <- solve(obj1break_best$he(obj1break_best$par))
+      				sd_report_1break_best <- sdreport(obj1break_best)
+      				Check_Identifiable(obj1break_best)
+      				sigma <- as.vector(exp(summary(sd_report_1break_best, "fixed")[grep("log_sigma", rownames(summary(sd_report_1break_best, "fixed"))),1]))
+      				mu_pred <- matrix(summary(sd_report_1break_best, "report")[grep("mu_pred", rownames(summary(sd_report_1break_best, "report"))),1], ncol=2, byrow=FALSE)
 
     				# Calculating the actual prediction
     				  LL <- obj1break_best$report()$LL
@@ -813,10 +879,16 @@ source("R/download_data_functions.R")
 
 
               ## main effect table & plot
-              Estimates <- summary(sd_report_1break, "fixed")
+              map <- as.factor(c(as.numeric(as.character(Map_best$beta)), max(as.numeric(as.character(Map_best$beta)),na.rm=T)+1:2))
+              map <- as.numeric(factor(map, labels=1:length(levels(map))))
+              mle <- sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break_best$par[map[x]], NA))
+              cov <- sd_report_1break_best$cov.fixed
+              sde <- summary(sd_report_1break_best, "fixed")[,2]
+              Estimates <- cbind(mle, sde)
               rownames(Estimates) <- c(apply(cbind(colnames(XX),"before"),1, function(x) paste(x, collapse="_")), apply(cbind(colnames(XX),"after"),1, function(x) paste(x, collapse="_")), "log_sigma_before", "log_sigma_after")
               Estimates <- as.data.frame(Estimates)
-              Estimates$gradient <- opt1break$diagnostics$final_gradient
+              Estimates$gradient <- rep(NA, length(map))
+              Estimates$gradient[which(!is.na(map))] <- opt1break_best$diagnostics$final_gradient
 
               plot(data_tmb$thresh, weight, type="b", main="", xlab="", ylab="")
               mtext(side = 1, line=3, "Recapture time (julian days)", cex=1.3)
@@ -864,11 +936,12 @@ source("R/download_data_functions.R")
 
 
             # And now some cross-validation code to compare the two best models
-              source(paste0(getwd(), "/R/cross_validation.R"))
+              if (model_choice == "lm") source(paste0(getwd(), "/R/cross_validation.R"))
+              if (model_choice == "lme") source(paste0(getwd(), "/R/cross_validation_RE.R"))
+
 
 
         # A 2 break points
-
             run_2breakpoint_model <- function(){
               N_threshold <- 3
               data_tmb$K <- N_threshold
@@ -967,8 +1040,6 @@ source("R/download_data_functions.R")
               Estimates_2break$gradient <- opt_2breaks$diagnostics$final_gradient
 
             }
-
-
 
 
           ## Simulating observations
