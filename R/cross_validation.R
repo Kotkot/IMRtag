@@ -134,6 +134,7 @@ if(do_parallel)
   stopCluster(cl)
   cat("Completed in ", t2.core-t1.core,"\n")
   Cross_val_res_df <- data.frame(Cross_val_res)
+  colnames(Cross_val_res_df) <- c("No_thres", "Thresh")
   Cross_val_res_df_melt <- gather(Cross_val_res_df, "Model_type","MSE")
 }
 
@@ -152,8 +153,8 @@ ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
   geom_point()+
   geom_abline(slope =1, intercept = 0, lty = 2, col = 1)+
   scale_color_manual(values = c("lightblue", "red"))+
-  scale_x_continuous(breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
-  scale_y_continuous(breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
+  scale_x_continuous(name = "No threshold",  breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
+  scale_y_continuous(name = "With threshold",breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
   theme_bw()+theme(
     panel.grid = element_blank(),
     legend.position = "none"

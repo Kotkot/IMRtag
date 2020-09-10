@@ -40,7 +40,7 @@ cross_validation <- function(x){
                              year = rep(0, length(unique(training$Release_year))),
                              log_sigma_year = log(0.2))
       Map = list()
-      obj <- MakeADFun(data_tmb, parameters_tmb, random = "year", DLL = "mackerel_mvt_model_nothresh_RE", map=Map)
+      obj <- MakeADFun(data_tmb, parameters_tmb, random = "year", DLL = "mackerel_mvt_model_nothresh_RE", map=Map, silent =TRUE)
       opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000), quiet=TRUE)
       sd_report <- sdreport(obj)
       mu_pred <- matrix(summary(sd_report, "report")[grep("mu_pred", rownames(summary(sd_report, "report"))),1], ncol=1, byrow=FALSE)
@@ -78,7 +78,7 @@ cross_validation <- function(x){
       Map1$log_sigma_year <- factor(c(N_threshold*ncol(XX)+15:16))
       parameters_tmb1$beta[which(is.na(Maps_best[best_mod,]))] <- 0
 
-      obj1 <- MakeADFun(data_tmb1, parameters_tmb1, random = "year", DLL = "mackerel_mvt_model_RE", map=Map1)
+      obj1 <- MakeADFun(data_tmb1, parameters_tmb1, random = "year", DLL = "mackerel_mvt_model_RE", map=Map1, silent =TRUE)
       opt1 <- fit_tmb( obj=obj1, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000), quiet=TRUE)
       sd_report1 <- sdreport(obj1)
       mu_pred <- matrix(summary(sd_report1, "report")[grep("mu_pred", rownames(summary(sd_report1, "report"))),1], ncol=2, byrow=FALSE)
@@ -147,6 +147,7 @@ if(do_parallel)
   stopCluster(cl)
   cat("Completed in ", t2.core-t1.core,"\n")
   Cross_val_res_df <- data.frame(Cross_val_res)
+  colnames(Cross_val_res_df) <- c("No_thres", "Thresh")
   Cross_val_res_df_melt <- gather(Cross_val_res_df, "Model_type","MSE")
 }
 
@@ -169,10 +170,11 @@ ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
   geom_point()+
   geom_abline(slope =1, intercept = 0, lty = 2, col = 1)+
   scale_color_manual(values = c("lightblue", "red"))+
-  scale_x_continuous(breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
-  scale_y_continuous(breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
+  scale_x_continuous(name = "No threshold", breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
+  scale_y_continuous(name = "With threshold", breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
   theme_bw()+theme(
     panel.grid = element_blank(),
     legend.position = "none"
   )
+
 
