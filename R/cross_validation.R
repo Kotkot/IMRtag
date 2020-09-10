@@ -140,15 +140,18 @@ if(do_parallel)
 
 Cross_val_res_df_melt$Model_type <- factor(Cross_val_res_df_melt$Model_type, labels=c("No threshold", "With threshold"))
 
-ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") +
+print(
+  ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") +
   theme_bw() +
-  coord_cartesian(ylim=c(0.017,0.032))
+  coord_cartesian(ylim=c(0.017,0.032)))
 
-t.test(x=Cross_val_res_df[,1], y=Cross_val_res_df[,2], alternative = "two.sided", paired = TRUE)
+print(
+  t.test(x=Cross_val_res_df[,1], y=Cross_val_res_df[,2], alternative = "two.sided", paired = TRUE)
+)
 
-# Adding a plot illustrating that the it is not just the distrbution (boxplot), but with one exception
-#
-ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
+# Adding a plot illustrating that the it is not just the distrbution (boxplot)
+print(
+  ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
                                                    col = No_thres < Thresh))+
   geom_point()+
   geom_abline(slope =1, intercept = 0, lty = 2, col = 1)+
@@ -158,5 +161,5 @@ ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
   theme_bw()+theme(
     panel.grid = element_blank(),
     legend.position = "none"
-  )
+  ))
 
