@@ -232,7 +232,7 @@ parameters_tmb_best$beta[which(is.na(Maps_best[best_mod,]))] <- 0
 obj1break_best <- MakeADFun(data_tmb, parameters_tmb_best, random = "year", DLL = "mackerel_mvt_model_RE", map=Map_best)
 opt1break_best <- fit_tmb( obj=obj1break_best, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
                       control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
-opt1break_best$objective * 2 + p * length(opt1break_best$par)
+AIC_best <- opt1break_best$objective * 2 + p * length(opt1break_best$par)
 
 map <- as.factor(as.numeric(c(as.character(Map_best$beta))))
 map <- as.numeric(factor(map, labels=1:length(levels(map))))

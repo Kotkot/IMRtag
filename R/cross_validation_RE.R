@@ -1,4 +1,4 @@
-N_cross = 500
+N_cross = 100
 P_cross <- 0.8
 
 # Just in case you have not compiled and loaded the model
@@ -110,9 +110,16 @@ Cross_val_res_df <- do.call(rbind, Cross_val_res)
 colnames(Cross_val_res_df) <- c("No_thres", "Thresh")
 boxplot(Cross_val_res_df)
 
+expression1 <- bquote(delta[AIC] == ~ .(trunc(AIC_nothres_best-AIC_best)))
+expression2 <- bquote(delta[AIC]==0)
+
 Cross_val_res_df_melt <- reshape2::melt(Cross_val_res_df, variable.name="Model_type")
 colnames(Cross_val_res_df_melt) <- c("ID", "Model_type", "MSE")
 Cross_val_res_df_melt$Model_type <- factor(Cross_val_res_df_melt$Model_type, labels=c("No threshold", "With threshold"))
-ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") + theme_bw()
+ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") +
+  theme_bw() +
+  geom_text(data=data.frame(Model_type=c("No threshold"), MSE=c(0.031)), label=deparse(expression1), parse=TRUE) +
+  geom_text(data=data.frame(Model_type=c("With threshold"), MSE=c(0.031)), label=deparse(expression2), parse=TRUE) +
+  coord_cartesian(ylim=c(0.017,0.032))
 
 t.test(x=Cross_val_res_df[,1], y=Cross_val_res_df[,2], alternative = "two.sided")
