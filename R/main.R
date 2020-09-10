@@ -31,11 +31,11 @@ source("R/download_data_functions.R")
   library(TMBhelper)
 
 #### Downloading data and checking it
-	tg_catches()         %>% glimpse()
-	tg_catches_bio()     %>% glimpse()
-	tg_expeditions()     %>% glimpse()
-	tg_expeditions_bio() %>% glimpse()
-
+#	tg_catches()         %>% glimpse()
+#	tg_catches_bio()     %>% glimpse()
+#	tg_expeditions()     %>% glimpse()
+#	tg_expeditions_bio() %>% glimpse()
+species <- "mackerel"
 	Link_catch_sample <- jsonlite::fromJSON(paste0("http://smartfishsvc.hi.no/api/data/BioSamplesCatches/", species[1]))
 
 	Catch_data <- tg_catches()
@@ -679,7 +679,7 @@ source("R/download_data_functions.R")
                                       control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
                 map <- as.numeric(c(as.character(Map$beta), (length(opt$par))))
-                AIC_nothres[k] <- opt$objective * 2 + p * length(opt$par)
+                AIC_nothres[k] <- opt$objective * 2 + 2 * length(opt$par)
                 # only removing 1
                 mle <- sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt$par[Map$beta[x]], NA))
                 cov <- solve(obj$he(opt$par))
@@ -778,7 +778,7 @@ source("R/download_data_functions.R")
                                       control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
                 map <- as.numeric(c(as.character(Map$beta), (length(opt$par)-c(1,0))))
-                AIC_nothres[k] <- opt$objective * 2 + p * length(opt$par)
+                AIC_nothres[k] <- opt$objective * 2 + 2 * length(opt$par)
                 # only removing 1
                 mle <- sapply(1:length(Map$beta), function(x) ifelse(is.na(x)==F, opt$par[Map$beta[x]], NA))
                 sdrep <- sdreport(obj)
@@ -812,7 +812,7 @@ source("R/download_data_functions.R")
               opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
                               control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
 
-              AIC_nothres_best <- opt$objective * 2 + p * length(opt$par)
+              AIC_nothres_best <- opt$objective * 2 + 2 * length(opt$par)
               sd_report_nothres <- sdreport(obj)
               Check_Identifiable(obj)
               sigma_nothres <- as.vector(exp(summary(sd_report_nothres, "fixed")[grep("log_sigma", rownames(summary(sd_report_nothres, "fixed"))),1]))

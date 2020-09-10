@@ -1,5 +1,6 @@
 N_cross = 500
 P_cross <- 0.8
+do_parallel <- TRUE
 
 # Just in case you have not compiled and loaded the model
 # use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh")
@@ -92,15 +93,69 @@ cross_validation <- function(x){
       out <- c(mse_nothres, mse_thres)
       return(out)
  }
+if(!do_parallel)
+{
+  t1  <- Sys.time()
+  Cross_val_res <- 1:N_cross %>% map(function(x) cross_validation(x))
+  t2  <- Sys.time()
+  cat("Completed in ", t2-t1,"\n")
+  Cross_val_res_df <- do.call(rbind, Cross_val_res)
+  colnames(Cross_val_res_df) <- c("No_thres", "Thresh")
+  boxplot(Cross_val_res_df)
+  Cross_val_res_df_melt <- reshape2::melt(Cross_val_res_df, variable.name="Model_type")
+  colnames(Cross_val_res_df_melt) <- c("ID", "Model_type", "MSE")
+}
+# ------------------------
+# -- Parallell version: --
+#--------------------------
+if(do_parallel)
+{
+  library(doParallel)
+  cl <- makeCluster(detectCores()-2)
 
-Cross_val_res <- 1:N_cross %>% map(function(x) cross_validation(x))
-Cross_val_res_df <- do.call(rbind, Cross_val_res)
-colnames(Cross_val_res_df) <- c("No_thres", "Thresh")
-boxplot(Cross_val_res_df)
+  clusterEvalQ(cl, {
+    library(TMB)
+    library(TMBhelper)
+    library(tidyverse)
+    use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh_RE")
+    #compile(paste0(use_version_simple, ".cpp"))
+    dyn.load(use_version_simple)
+    use_version <- paste0(getwd(), "/src/mackerel_mvt_model_RE")
+    #compile(paste0(use_version, ".cpp"))
+    dyn.load(use_version)
+  })
+  clusterExport(cl,
+                varlist = c("P_cross", "Data_mackerel_use_Ireland_select", "AIC_selection",
+                            "AIC_selection2","threshold_vals", "mean_diff_tag_area",
+                            "Maps_best"))
+  t1.core <- Sys.time()
+  Cross_val_res <- t(parSapply(cl, 1:N_cross, cross_validation))
+  t2.core  <- Sys.time()
+  stopCluster(cl)
+  cat("Completed in ", t2.core-t1.core,"\n")
+  Cross_val_res_df <- data.frame(Cross_val_res)
+  Cross_val_res_df_melt <- gather(Cross_val_res_df, "Model_type","MSE")
+}
 
-Cross_val_res_df_melt <- reshape2::melt(Cross_val_res_df, variable.name="Model_type")
-colnames(Cross_val_res_df_melt) <- c("ID", "Model_type", "MSE")
 Cross_val_res_df_melt$Model_type <- factor(Cross_val_res_df_melt$Model_type, labels=c("No threshold", "With threshold"))
-ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") + theme_bw()
 
-t.test(x=Cross_val_res_df[,1], y=Cross_val_res_df[,2], alternative = "two.sided")
+ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") +
+  theme_bw() +
+  coord_cartesian(ylim=c(0.017,0.032))
+
+t.test(x=Cross_val_res_df[,1], y=Cross_val_res_df[,2], alternative = "two.sided", paired = TRUE)
+
+# Adding a plot illustrating that the it is not just the distrbution (boxplot), but with one exception
+#
+ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
+                                                   col = No_thres < Thresh))+
+  geom_point()+
+  geom_abline(slope =1, intercept = 0, lty = 2, col = 1)+
+  scale_color_manual(values = c("lightblue", "red"))+
+  scale_x_continuous(breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
+  scale_y_continuous(breaks = seq(0.0175,0.03, 0.0025), limit = range(Cross_val_res_df))+
+  theme_bw()+theme(
+    panel.grid = element_blank(),
+    legend.position = "none"
+  )
+
