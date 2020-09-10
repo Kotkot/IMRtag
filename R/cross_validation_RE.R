@@ -1,4 +1,3 @@
-if(FALSE){
 N_cross = 500
 P_cross <- 0.8
 do_parallel <- TRUE
@@ -156,7 +155,7 @@ Cross_val_res_df_melt$Model_type <- factor(Cross_val_res_df_melt$Model_type, lab
 expression1 <- bquote(delta[AIC] == ~ .(trunc(AIC_nothres_best-AIC_best)))
 expression2 <- bquote(delta[AIC]==0)
 
-}
+
 print(
   ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") +
   theme_bw() +
