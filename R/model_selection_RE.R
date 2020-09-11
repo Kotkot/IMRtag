@@ -212,7 +212,7 @@ for(k in 1:(nrow(Maps)-1)){
 }
 
 
-## Extract the best model
+## Tunig the model a bit further
 AIC_selection
 AIC_selection2
 best_mod <- c(which.min(AIC_selection),which.min(AIC_selection2))[which.min(c(AIC_selection[which.min(AIC_selection)],AIC_selection2[which.min(AIC_selection2)]))]
@@ -256,6 +256,54 @@ pp
 res <- data.frame(MLE=mle[1:ncol(XX),], p_value=pp)
 colnames(res) <- c("mu_before", "mu_after", "p_value")
 res
+
+
+
+### Now adjusting the model to keep parameters the same before or after
+to_combine <- which(pp>0.05)
+Map_best = list()
+Map_best$beta <- factor(Maps_best[best_mod,])
+Map_best$log_sigma <- factor(c(2*ncol(XX)+1:2))
+Map_best$year <- factor(N_threshold*ncol(XX)+2+matrix(1:length(parameters_tmb$year), ncol=N_threshold))
+Map_best$log_sigma_year <- factor(c(N_threshold*ncol(XX)+15:16))
+parameters_tmb_best <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
+                            log_sigma = rep(log(0.2),N_threshold),
+                            year = matrix(rep(0, length(unique(Data_mackerel_use_Ireland_select$Release_year))*N_threshold), ncol=2),
+                            log_sigma_year = rep(log(0.2),N_threshold))
+parameters_tmb_best$beta[which(is.na(Maps_best[best_mod,]))] <- 0
+Map_best$beta[to_combine+ncol(XX)] <- to_combine
+Map_best$beta <- factor(Map_best$beta)
+
+#-- optimize-- :
+obj1break_best <- MakeADFun(data_tmb, parameters_tmb_best, random = "year", DLL = "mackerel_mvt_model_RE", map=Map_best)
+opt1break_best <- fit_tmb( obj=obj1break_best, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE,
+                           control = list(eval.max = 20000, iter.max = 20000, trace = TRUE))
+AIC_best <- opt1break_best$objective * 2 + p * length(opt1break_best$par)
+
+map <- as.factor(as.numeric(c(as.character(Map_best$beta))))
+map <- as.numeric(factor(map, labels=1:length(levels(map))))
+mle <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break_best$par[map[x]], NA)), byrow=F, ncol=2)
+sdrep <- sdreport(obj1break_best)
+cov <- sdrep$cov.fixed
+sde <- matrix(sapply(1:length(map), function(x) ifelse(is.na(x)==F, summary(sdrep, "fixed")[map[x],2], NA)), byrow=F, ncol=2)
+
+par(mfrow=c(4,3))
+for (i in 1:ncol(XX)){
+  if (! TRUE %in% is.na(mle[i,])) plot(density(rnorm(100000, diff(mle[i,]), sqrt(cov[i,i]+cov[i+ncol(XX),i+ncol(XX)]-2*cov[i,i+ncol(XX)])))); abline(v=0)
+}
+
+# -- alternative: --
+pp <- numeric(ncol(XX))
+for(i in 1:ncol(XX)){
+  pp[i] <- 2*pnorm(abs(mle[i,1]-mle[i,2]), mean = 0, sd = sqrt(cov[i,i]+cov[ncol(XX)+i,ncol(XX)+i]-2*cov[i,ncol(XX)+i]), lower.tail = FALSE)
+}
+pp
+
+res <- data.frame(MLE=mle[1:ncol(XX),], p_value=pp)
+colnames(res) <- c("mu_before", "mu_after", "p_value")
+res
+
+
 
 
 #

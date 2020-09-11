@@ -157,11 +157,12 @@ expression2 <- bquote(delta[AIC]==0)
 
 
 print(
-  ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") +
+  g1 <- ggplot(Cross_val_res_df_melt, aes(x=Model_type, y=MSE)) + geom_violin() + geom_boxplot(width=0.1, fill="lightgreen") +
   theme_bw() +
   geom_text(data=data.frame(Model_type=c("No threshold"), MSE=c(0.031)), label=deparse(expression1), parse=TRUE) +
   geom_text(data=data.frame(Model_type=c("With threshold"), MSE=c(0.031)), label=deparse(expression2), parse=TRUE) +
   coord_cartesian(ylim=c(0.017,0.032))
+  g1
 )
 
 print(
@@ -170,7 +171,7 @@ print(
 # Adding a plot illustrating that the it is not just the distrbution (boxplot), but with one exception
 #
 print(
-  ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
+  g2 <- ggplot(data = as.data.frame(Cross_val_res_df), aes(x = No_thres, y = Thresh,
                                                    col = No_thres < Thresh))+
   geom_point()+
   geom_abline(slope =1, intercept = 0, lty = 2, col = 1)+
@@ -181,5 +182,9 @@ print(
     panel.grid = element_blank(),
     legend.position = "none"
   )
+  g2
 )
+
+grid.arrange(g1,g2,ncol=2)
+
 

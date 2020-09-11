@@ -489,6 +489,7 @@ species <- "mackerel"
 
 			# Rescaling parameters to ease interpretation
 			Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
+			Data_mackerel_use_Ireland_select$julian_recapture_standardized <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std, center=FALSE)
 			Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$length)
 
 			# Choice of the design matrix
@@ -511,128 +512,128 @@ species <- "mackerel"
 
       if(do_bayesian == TRUE){
 
-    # With 2 groups
-    Data <- list(
-      K=2,  # number of mixture components
-      N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
-      Nx=ncol(XX),   # the fixed effect part
-      X=XX,          # the design matrix for the fixed effect
-      Nthres=length(threshold_vals),
-      thresh=threshold_vals,
-      thresh_start=threshold_vals_group_start,
-      thresh_end=threshold_vals_group_end,
-      mean_diff_tag_area= mean_diff_tag_area,
-      is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
-      y = Data_mackerel_use_Ireland_select$log_rate
-    )
+        # With 2 groups
+        Data <- list(
+          K=2,  # number of mixture components
+          N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+          Nx=ncol(XX),   # the fixed effect part
+          X=XX,          # the design matrix for the fixed effect
+          Nthres=length(threshold_vals),
+          thresh=threshold_vals,
+          thresh_start=threshold_vals_group_start,
+          thresh_end=threshold_vals_group_end,
+          mean_diff_tag_area= mean_diff_tag_area,
+          is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+          y = Data_mackerel_use_Ireland_select$log_rate
+        )
 
-    library(rstan)
-    options(mc.cores = 3)
-    rstan_options(auto_write = TRUE)
-    mixture_mod <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold.stan"), data = Data,
-                         iter = 20000 , warmup=15000 , chains = 3, thin=10,
-                         control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
-    # the use of dynamic programming to linearise the problem... does not work too well...
-    mixture_moda <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold_dp.stan"), data = Data,
-                          iter = 5000 , warmup=3500 , chains = 3, thin=10,
-                          control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
+        library(rstan)
+        options(mc.cores = 3)
+        rstan_options(auto_write = TRUE)
+        mixture_mod <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold.stan"), data = Data,
+                             iter = 20000 , warmup=15000 , chains = 3, thin=10,
+                             control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
+        # the use of dynamic programming to linearise the problem... does not work too well...
+        mixture_moda <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threoshold_dp.stan"), data = Data,
+                              iter = 5000 , warmup=3500 , chains = 3, thin=10,
+                              control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
 
-    # With 3 groups (computer is struggling)
-    Data3 <- list(
-      K=3,  # number of mixture components
-      N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
-      Nx=ncol(XX),   # the fixed effect part
-      X=XX,          # the design matrix for the fixed effect
-      Nthres=length(threshold_vals),
-      thresh=threshold_vals,
-      thresh_start=threshold_vals_group_start,
-      thresh_end=threshold_vals_group_end,
-      mean_diff_tag_area= mean_diff_tag_area,
-      is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
-      y = Data_mackerel_use_Ireland_select$log_rate
-    )
+        # With 3 groups (computer is struggling)
+        Data3 <- list(
+          K=3,  # number of mixture components
+          N=nrow(Data_mackerel_use_Ireland_select),   # number of data points
+          Nx=ncol(XX),   # the fixed effect part
+          X=XX,          # the design matrix for the fixed effect
+          Nthres=length(threshold_vals),
+          thresh=threshold_vals,
+          thresh_start=threshold_vals_group_start,
+          thresh_end=threshold_vals_group_end,
+          mean_diff_tag_area= mean_diff_tag_area,
+          is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+          y = Data_mackerel_use_Ireland_select$log_rate
+        )
 
-    set.seed(1)
-    inits1 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
-    inits2 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
-    inits3 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
+        set.seed(1)
+        inits1 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
+        inits2 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
+        inits3 <- list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3), sigma=runif(1,0.1,0.5))
 
-    inits_gen <- function(chain_id = 1) {
-      list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
-           sigma=runif(3,0.1,0.5)) #,
-      # mu=XX %*% inits1$beta,
-      # lp=rep(0, length(threshold_vals)))
-    }
-    init_ll <- lapply(1, function(id) inits_gen(chain_id = id))
-
-
-    library(rstan)
-    options(mc.cores = 3)
-    rstan_options(auto_write = TRUE)
-    mixture_mod3 <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks.stan"), data = Data3,
-                          iter = 5000 , warmup=3500 , chains = 3, thin=10,
-                          control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
-    # the use of dynamic programming to linearise the problem... does not work too well...
-    mixture_mod3b <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks_dp.stan"), data = Data3,
-                           iter = 500, warmup=350, chains = 1, thin=10,
-                           #init=init_ll,
-                           control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
-
-    # Some model checking + residual analysis of the Bayesian model
-    library(shinystan)
-    launch_shinystan(mixture_mod)
-    check_hmc_diagnostics(mixture_mod)     # need no warning
-    get_low_bfmi_chains(mixture_mod)
-    stan_diag(mixture_mod)
-    stan_rhat(mixture_mod)
-
-    sampler_params <- get_sampler_params(mixture_mod, inc_warmup = FALSE)
-    sampler_params_chain1 <- sampler_params[[1]]
-    colnames(sampler_params_chain1)
-    mean_accept_stat_by_chain <- sapply(sampler_params, function(x) mean(x[, "accept_stat__"]))
-    print(mean_accept_stat_by_chain)
-    max_treedepth_by_chain <- sapply(sampler_params, function(x) max(x[, "treedepth__"]))
-    print(max_treedepth_by_chain)
-
-    summary(mixture_mod)$summary
-
-    LP <- extract(mixture_mod, pars="lp")
-    LP_mean <- apply(exp(LP$lp), 2, mean)
-
-    windows()
-    plot(Data$thresh, LP_mean)
-    best_LP <- which(LP_mean == max(LP_mean))
-    (threshold <- Data$thresh[best_LP])
-
-    par_list <- c("y_gen")
-    y_pred <- rstan::extract(mixture_mod, pars=par_list,inc_warmup=FALSE, permuted=FALSE)
-    #essai <- array(y_pred[,1,], dim=c(200,17,903))[,best_LP,]
-    y_pred_new <- rbind(apply(array(y_pred[,1,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
-                        apply(array(y_pred[,2,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
-                        apply(array(y_pred[,3,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))))
-    y_pred_summary <- data.frame(n=rep(seq(1,250),4)[1:length(Data$y)], ID = seq_along(Data$y), obs = Data$y,mean=apply(y_pred_new,2,mean), l95=apply(y_pred_new, 2, function(x) quantile(x,0.025)), u95=apply(y_pred_new, 2, function(x) quantile(x,0.975)))
-    y_pred_summary$Cat <- cut(y_pred_summary$ID, seq(0,1000,by=250))
-    head(y_pred_summary)
-    ggplot(y_pred_summary, aes(x=n, y=obs)) + geom_point(col="red") +
-      geom_errorbar(aes(x=n, ymin=l95, ymax=u95)) + theme_bw() + facet_grid(Cat~., scales="free")
-
-    # residual analysis
-    plot(y_pred_summary$ID, (y_pred_summary$mean-y_pred_summary$obs)/y_pred_summary$mean)
-    abline(h=0, lty=2)
-    qqnorm(y=(y_pred_summary$mean-y_pred_summary$obs)/sd((y_pred_summary$mean-y_pred_summary$obs)))
-    abline(0,1, lty=2)
-
-    # Plot marginal effects
-    Beta_estimates <- summary(mixture_mod)$summary[grep("beta", rownames(summary(mixture_mod)$summary)),]
-    group1 <- Beta_estimates[seq(1,20,by=2),]
-    group2 <- Beta_estimates[seq(2,20,by=2),]
-    aaa <- cbind(group1[,1], group2[,1])
-    rownames(aaa) <- colnames(XX)
-    print(aaa)
+        inits_gen <- function(chain_id = 1) {
+          list(beta=matrix(c(rep(10,3),runif(9,-2,2),runif(6*3,-0.05,0.05)),byrow=T, ncol=3),
+               sigma=runif(3,0.1,0.5)) #,
+          # mu=XX %*% inits1$beta,
+          # lp=rep(0, length(threshold_vals)))
+        }
+        init_ll <- lapply(1, function(id) inits_gen(chain_id = id))
 
 
+        library(rstan)
+        options(mc.cores = 3)
+        rstan_options(auto_write = TRUE)
+        mixture_mod3 <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks.stan"), data = Data3,
+                              iter = 5000 , warmup=3500 , chains = 3, thin=10,
+                              control = list(adapt_delta = 0.99, max_treedepth = 15), seed=123)
+        # the use of dynamic programming to linearise the problem... does not work too well...
+        mixture_mod3b <- stan( file = paste0(getwd(), "/src/mackerel_mvt_model_threshold_2breaks_dp.stan"), data = Data3,
+                               iter = 500, warmup=350, chains = 1, thin=10,
+                               #init=init_ll,
+                               control = list(adapt_delta = 0.99, max_treedepth = 20), seed=123)
 
-  }
+        # Some model checking + residual analysis of the Bayesian model
+        library(shinystan)
+        launch_shinystan(mixture_mod)
+        check_hmc_diagnostics(mixture_mod)     # need no warning
+        get_low_bfmi_chains(mixture_mod)
+        stan_diag(mixture_mod)
+        stan_rhat(mixture_mod)
+
+        sampler_params <- get_sampler_params(mixture_mod, inc_warmup = FALSE)
+        sampler_params_chain1 <- sampler_params[[1]]
+        colnames(sampler_params_chain1)
+        mean_accept_stat_by_chain <- sapply(sampler_params, function(x) mean(x[, "accept_stat__"]))
+        print(mean_accept_stat_by_chain)
+        max_treedepth_by_chain <- sapply(sampler_params, function(x) max(x[, "treedepth__"]))
+        print(max_treedepth_by_chain)
+
+        summary(mixture_mod)$summary
+
+        LP <- extract(mixture_mod, pars="lp")
+        LP_mean <- apply(exp(LP$lp), 2, mean)
+
+        windows()
+        plot(Data$thresh, LP_mean)
+        best_LP <- which(LP_mean == max(LP_mean))
+        (threshold <- Data$thresh[best_LP])
+
+        par_list <- c("y_gen")
+        y_pred <- rstan::extract(mixture_mod, pars=par_list,inc_warmup=FALSE, permuted=FALSE)
+        #essai <- array(y_pred[,1,], dim=c(200,17,903))[,best_LP,]
+        y_pred_new <- rbind(apply(array(y_pred[,1,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
+                            apply(array(y_pred[,2,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))),
+                            apply(array(y_pred[,3,], dim=c(200,17,903)), c(1,3), function(x) sum(x*LP_mean/sum(LP_mean))))
+        y_pred_summary <- data.frame(n=rep(seq(1,250),4)[1:length(Data$y)], ID = seq_along(Data$y), obs = Data$y,mean=apply(y_pred_new,2,mean), l95=apply(y_pred_new, 2, function(x) quantile(x,0.025)), u95=apply(y_pred_new, 2, function(x) quantile(x,0.975)))
+        y_pred_summary$Cat <- cut(y_pred_summary$ID, seq(0,1000,by=250))
+        head(y_pred_summary)
+        ggplot(y_pred_summary, aes(x=n, y=obs)) + geom_point(col="red") +
+          geom_errorbar(aes(x=n, ymin=l95, ymax=u95)) + theme_bw() + facet_grid(Cat~., scales="free")
+
+        # residual analysis
+        plot(y_pred_summary$ID, (y_pred_summary$mean-y_pred_summary$obs)/y_pred_summary$mean)
+        abline(h=0, lty=2)
+        qqnorm(y=(y_pred_summary$mean-y_pred_summary$obs)/sd((y_pred_summary$mean-y_pred_summary$obs)))
+        abline(0,1, lty=2)
+
+        # Plot marginal effects
+        Beta_estimates <- summary(mixture_mod)$summary[grep("beta", rownames(summary(mixture_mod)$summary)),]
+        group1 <- Beta_estimates[seq(1,20,by=2),]
+        group2 <- Beta_estimates[seq(2,20,by=2),]
+        aaa <- cbind(group1[,1], group2[,1])
+        rownames(aaa) <- colnames(XX)
+        print(aaa)
+
+
+
+      }
 
 
 		## Now doing the same model but using TMB
@@ -883,13 +884,13 @@ species <- "mackerel"
               map <- as.numeric(factor(map, labels=1:length(levels(map))))
               mle <- sapply(1:length(map), function(x) ifelse(is.na(x)==F, opt1break_best$par[map[x]], NA))
               cov <- sd_report_1break_best$cov.fixed
-              sde <- summary(sd_report_1break_best, "fixed")[,2]
+              sde <- sapply(1:length(map), function(x) ifelse(is.na(x)==F, sqrt(diag(cov))[map[x]], NA))
               Estimates <- cbind(mle, sde)
               rownames(Estimates) <- c(apply(cbind(colnames(XX),"before"),1, function(x) paste(x, collapse="_")), apply(cbind(colnames(XX),"after"),1, function(x) paste(x, collapse="_")),
                                        apply(cbind(names(opt1break_best$par)[grep("sigma", names(opt1break_best$par))], rep(c("before", "after"),2)), 1, function(x) paste(x,collapse="_")))
               Estimates <- as.data.frame(Estimates)
               Estimates$gradient <- rep(NA, length(map))
-              Estimates$gradient[which(!is.na(map))] <- opt1break_best$diagnostics$final_gradient
+              Estimates$gradient <- opt1break_best$diagnostics$final_gradient[map[!is.na(map)]]
 
               plot(data_tmb$thresh, weight, type="b", main="", xlab="", ylab="")
               mtext(side = 1, line=3, "Recapture time (julian days)", cex=1.3)
@@ -914,8 +915,8 @@ species <- "mackerel"
               #Estimates_df$covariate <- c(rep(c("Intercept", "From_West", "> May 22nd", "body length (rescaled)", "recapture date (rescaled)", "From West + >May 22nd"), 2),
               #                            "sigma_obs", "sigma_obs", "sigma_year", "sigma_year")
               Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "From_West", "> May 22nd", "From West + >May 22nd", "body length (rescaled)", "recapture date (rescaled)", "log(sigma_obs)", "log(sigma_year)"))
-              levels(Estimates_df$covariate)[1] <- "Intercept (true_value add 8.0)"
-              Estimates_df$mean_transformed <- ifelse(Estimates_df$mean>8, Estimates_df$mean-8, Estimates_df$mean)
+              levels(Estimates_df$covariate)[1] <- "Intercept (true_value add 12.0)"
+              Estimates_df$mean_transformed <- ifelse(Estimates_df$mean>12, Estimates_df$mean-12, Estimates_df$mean)
               Estimates_df$x_fake = 2.0
               Estimates_df$label = paste0("", round(Estimates_df$mean, 3))
 
@@ -950,6 +951,15 @@ species <- "mackerel"
             # And now some cross-validation code to compare the two best models
               if (model_choice == "lm") source(paste0(getwd(), "/R/cross_validation.R"))
               if (model_choice == "lme") source(paste0(getwd(), "/R/cross_validation_RE.R"))
+
+
+      # a bit more plot of the best threshold model
+      plot(Data_mackerel_use_Ireland_select$julian_recapture_scaled, Data_mackerel_use_Ireland_select$log_rate,
+           xlab="recapture data (julian days)", ylab = "log(movement rate)")
+      points(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland")$julian_recapture_scaled, Prediction[which(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland")], col="red3", pch=20, cex=0.5)
+      points(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland")$julian_recapture_scaled, Prediction[which(Data_mackerel_use_Ireland_select$Tag_area == "North_Ireland")], col="blue3", pch=20, cex=0.5)
+
+
 
 
         # A 2 break points
