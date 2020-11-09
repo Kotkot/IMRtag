@@ -12,8 +12,8 @@
 ################################################
 
 #### Installing required packages
-	devtools::install_github("fishvice/taggart", dependencies = FALSE)
-source("R/download_data_functions.R")
+	#devtools::install_github("fishvice/taggart", dependencies = FALSE)
+  source("R/download_data_functions.R")
 	library(taggart)
 	library(adehabitatHR)
 	library(tidyverse)
@@ -27,6 +27,7 @@ source("R/download_data_functions.R")
 	library(scatterpie)
   library(ggplot2)
   library(ggnewscale)
+  library(ggthemes)
   library(TMB)
   library(TMBhelper)
 
@@ -100,15 +101,15 @@ species <- "mackerel"
 		Data_mackerel_all$length_bin  <- factor(Data_mackerel_all$length_bin, labels=c("(0,34cm]", "(34cm,37cm]", "(37cm,45cm]"))
 
 	### Need to make some geographical division of the data
-		West_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(31:36, function(x) grep(x, unique(Data_mackerel_all$ices))))]
+		South_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(31:36, function(x) grep(x, unique(Data_mackerel_all$ices))))]
 		North_Ireland <- unique(Data_mackerel_all$ices)[unlist(sapply(37:46, function(x) grep(x, unique(Data_mackerel_all$ices))))]
 		Bergen <- unique(Data_mackerel_all$ices)[grep("F", unique(Data_mackerel_all$ices))]
 		Iceland <- unique(Data_mackerel_all$ices)[grep(58, unique(Data_mackerel_all$ices))]
-		Data_mackerel_all <- Data_mackerel_all %>% mutate(Tag_area = ifelse(ices %in% West_Ireland, "West_Ireland",
+		Data_mackerel_all <- Data_mackerel_all %>% mutate(Tag_area = ifelse(ices %in% South_Ireland, "South_Ireland",
 														 ifelse(ices %in% North_Ireland, "North_Ireland",
 																ifelse(ices %in% Bergen, "Bergen",
 																	   ifelse(ices %in% Iceland, "Iceland", "Weird")))))
-		Data_mackerel_all <- Data_mackerel_all %>% mutate(Tag_area_large = ifelse(ices %in% c(West_Ireland,North_Ireland), "Ireland",
+		Data_mackerel_all <- Data_mackerel_all %>% mutate(Tag_area_large = ifelse(ices %in% c(South_Ireland,North_Ireland), "Ireland",
 																					 ifelse(ices %in% Bergen, "Bergen",
 																							ifelse(ices %in% Iceland, "Iceland", "Weird"))))
 
@@ -157,7 +158,7 @@ species <- "mackerel"
 	Data_mackerel_use_select <- subset(Data_mackerel_final, duration < 365)
 	Data_mackerel_use_select <- Data_mackerel_final_sameyear
 
-	Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
+	Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("South_Ireland", "North_Ireland"))
 
 	## Using duration (not standardized) but focusing on within year recapture
 	Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2019)
@@ -287,7 +288,7 @@ species <- "mackerel"
       #### Then standardize by number of days in between
       #### Model this with respect to the different covariates
 
-      ### Analysis over the whole area: but area west&north of Ireland is the only place with consistent release over the years
+      ### Analysis over the whole area: but area South&north of Ireland is the only place with consistent release over the years
 
       ## Using duration (not standardized)
       # m01 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_final)
@@ -300,7 +301,7 @@ species <- "mackerel"
       # summary(m03)
 
       ## Using duration (not standardized) but focusing only on within year recapture
-      m0 <- gam(log_rate ~ s(length) + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
+      m0 <- gam(log_rate ~ s(length) + s(lo,la), family=gaussian, data=Data_mackerel_use_select)
       m1 <- gam(log_rate ~ s(length) + Release_month + s(lo, la), family=gaussian, data=Data_mackerel_use_select)
       m2 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_select)
       m3 <- gam(log_rate ~ s(length) + Release_month + s(lo, la) + Release_year, family=gaussian, data=Data_mackerel_use_select)
@@ -370,6 +371,7 @@ species <- "mackerel"
       with(Data_mackerel_use_Ireland_select, plot(julian_recapture_std, rate))
 
 
+      m00 <- gam(log_rate ~ s(length_scaled) + s(la) + factor(Release_year) + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
       m01 <- gam(log_rate ~ s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
       m02 <- gam(log_rate ~ s(length) + Category, family=gaussian, data=Data_mackerel_use_Ireland_select)
       m03 <- gam(log_rate ~ s(length) + s(lo, la) + s(date), family=gaussian, data=Data_mackerel_use_Ireland_select)
@@ -406,7 +408,7 @@ species <- "mackerel"
 
       AICtab(m1,m2,m3,m4,m5,m6,m7,m8,
              m0,m01,m02,m03,m04,m05,m10,m11,m12,m13)
-      bestm <- m16
+      bestm <- m00
       plot(bestm, all.terms=TRUE, residuals=TRUE, pages=1)
       sim_select <- simulateResiduals(fittedModel = bestm, n = 1000, integerResponse = FALSE, plot=FALSE)
       plot(sim_select, rank=T, quantreg = TRUE)
@@ -456,13 +458,13 @@ species <- "mackerel"
 
       with(Data_mackerel_use_Ireland_select, plot(length, log_rate))
       with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(length, log_rate))
-      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(length, log_rate))
+      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="South_Ireland"), plot(length, log_rate))
       with(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland"), plot(date, log_rate))
-      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland"), plot(date, log_rate))
+      with(subset(Data_mackerel_use_Ireland_select, Tag_area=="South_Ireland"), plot(date, log_rate))
       ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area)
       ggplot(Data_mackerel_use_Ireland_select, aes(x=date, y=log_rate, col=Release_year)) + geom_point() + facet_grid(~Tag_area) + geom_hline(yintercept = mean_diff_tag_area+ 8.7)+ geom_hline(yintercept =  8.7)
 
-      brr <- subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland")
+      brr <- subset(Data_mackerel_use_Ireland_select, Tag_area=="South_Ireland")
       brr$col <- ifelse(brr$log_rate<8.9,"red", ifelse(brr$log_rate>9.7, "blue", "purple"))
       ggmap(map_area) + geom_point(data=brr, aes(x=cLon, y=cLat, col=col), size=1)
       brr1 <- subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland")
@@ -484,13 +486,22 @@ species <- "mackerel"
 	  ## This makes me think that I might need to develop a changepoint model (with K components)
 		## I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
 		## A Bayesian change point model has therefore been developped below
-			Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland_select, Release_year %in% 2014:2019)
+			# Full data
+	      Data_mackerel_use_Ireland_select_origin <- subset(Data_mackerel_use_Ireland_select, Release_year %in% 2014:2019)
+      # Selected data
+			  Data_mackerel_use_Ireland_select_filter <- subset(Data_mackerel_use_Ireland_select, cLon>-10)
+			  #Data_mackerel_use_Ireland_select_filter <- subset(Data_mackerel_use_Ireland_select, cLon< -10)
+
+
+			Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select_origin
 			Data_mackerel_use_Ireland_select$ID <- 1:nrow(Data_mackerel_use_Ireland_select)
 
 			# Rescaling parameters to ease interpretation
 			Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
 			Data_mackerel_use_Ireland_select$julian_recapture_standardized <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std, center=FALSE)
 			Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$length)
+			Data_mackerel_use_Ireland_select$la_scaled <- scale(Data_mackerel_use_Ireland_select$la)
+			Data_mackerel_use_Ireland_select$la2_scaled <- scale((Data_mackerel_use_Ireland_select$la)^2)
 
 			# Choice of the design matrix
 			m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + factor(Release_year) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
@@ -523,7 +534,7 @@ species <- "mackerel"
           thresh_start=threshold_vals_group_start,
           thresh_end=threshold_vals_group_end,
           mean_diff_tag_area= mean_diff_tag_area,
-          is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+          is_from_South=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "South_Ireland",1,0),
           y = Data_mackerel_use_Ireland_select$log_rate
         )
 
@@ -549,7 +560,7 @@ species <- "mackerel"
           thresh_start=threshold_vals_group_start,
           thresh_end=threshold_vals_group_end,
           mean_diff_tag_area= mean_diff_tag_area,
-          is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+          is_from_South=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "South_Ireland",1,0),
           y = Data_mackerel_use_Ireland_select$log_rate
         )
 
@@ -637,6 +648,36 @@ species <- "mackerel"
 
 
 		## Now doing the same model but using TMB
+
+  			# Some plotting to justify covariate parametrization
+  			par(mfrow=c(3,2), oma=c(1,1,1,1), mar=c(4,4,1,1))
+  			with(Data_mackerel_use_Ireland_select, boxplot(log_rate ~ Release_year))
+  			with(Data_mackerel_use_Ireland_select, plot(length, log_rate))
+  			with(Data_mackerel_use_Ireland_select, plot(julian_recapture_std, log_rate))
+  			with(Data_mackerel_use_Ireland_select, boxplot(log_rate ~ Release_timing))
+  			with(Data_mackerel_use_Ireland_select, boxplot(log_rate ~ as.character(Tag_area)))
+
+  			with(Data_mackerel_use_Ireland_select, plot(log_rate ~ la, xlab="Release point latitude", ylab="Log movement rate"))
+  			with(subset(Data_mackerel_use_Ireland_select, Release_timing=="First_half"), plot(log_rate ~ la))
+  			with(subset(Data_mackerel_use_Ireland_select, Release_timing=="Second_half"), points(log_rate ~ la, col="red"))
+
+  			ggplot(subset(Data_mackerel_use_Ireland_select, Release_year=2014), aes(x=la, y=log_rate, col=julian_std)) + geom_point()
+
+  			map_area <- get_map(location= c(left = -35, bottom = 51, right = 21, top = 72))
+  			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=julian_recapture_std, pch=Tag_area)) +
+  			 scale_color_viridis_c()
+
+  			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=log_rate, pch=Tag_area)) +
+  			  scale_color_viridis_c()
+
+  			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=duration, pch=Tag_area)) +
+  			  scale_color_viridis_c()
+
+  			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=la, cex=log_rate)) +
+  			  scale_color_viridis_c()
+
+  			with(subset(Data_mackerel_use_Ireland_select, cLon< -9), table(Tag_area, Release_year))
+
 
         # no threshold model
 			    if (model_choice == "lm"){
@@ -736,6 +777,7 @@ species <- "mackerel"
             dyn.load(use_version_simple)
 
             m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
+            m1 <- lm(log_rate ~ factor(Release_timing) + la_scaled:factor(Release_timing) + la2_scaled:factor(Release_timing) + length_scaled + julian_recapture_scaled, data=Data_mackerel_use_Ireland_select)
             m_frame <- model.frame(m1)
             XX <- model.matrix(m1, m_frame)
 
@@ -844,7 +886,7 @@ species <- "mackerel"
       				sd_report_1break_best <- sdreport(obj1break_best)
       				Check_Identifiable(obj1break_best)
       				sigma <- as.vector(exp(summary(sd_report_1break_best, "fixed")[grep("log_sigma", rownames(summary(sd_report_1break_best, "fixed"))),1]))
-      				mu_pred <- matrix(summary(sd_report_1break_best, "report")[grep("mu_pred", rownames(summary(sd_report_1break_best, "report"))),1], ncol=2, byrow=FALSE)
+      				mu_pred_best <- matrix(summary(sd_report_1break_best, "report")[grep("mu_pred", rownames(summary(sd_report_1break_best, "report"))),1], ncol=2, byrow=FALSE)
 
     				# Calculating the actual prediction
     				  LL <- obj1break_best$report()$LL
@@ -860,16 +902,17 @@ species <- "mackerel"
     					for (n in 1:data_tmb$N){
     					  for (thr in 1:data_tmb$Nthres){
     					    if (data_tmb$thres_cov[n] < (data_tmb$thresh[thr])){
-    					      Prediction[n] = Prediction[n] + weight[thr]*mu_pred[n,1]
+    					      Prediction[n] = Prediction[n] + weight[thr]*mu_pred_best[n,1]
     					    }
     					    if (data_tmb$thres_cov[n] >= (data_tmb$thresh[thr])){
-    					      Prediction[n] = Prediction[n] + weight[thr]*mu_pred[n,2]
+    					      Prediction[n] = Prediction[n] + weight[thr]*mu_pred_best[n,2]
     					    }
     					  }
     					}
 
 
     					## Now producing the residual vs predictor
+
     					opt1break_resid <- (Prediction-data_tmb$y)/sd(Prediction-data_tmb$y)
               par(mfrow=c(3,2))
               plot(Data_mackerel_use_Ireland_select$length, opt1break_resid); abline(h=0, lty=2)
@@ -877,6 +920,8 @@ species <- "mackerel"
               plot(as.factor(Data_mackerel_use_Ireland_select$Release_timing), opt1break_resid); abline(h=0, lty=2)
               plot(Data_mackerel_use_Ireland_select$Release_year, opt1break_resid); abline(h=0, lty=2)
               plot(Data_mackerel_use_Ireland_select$julian_recapture_std, opt1break_resid); abline(h=0, lty=2)
+
+              g_resid <- ggplot(data=data.frame(x=opt1break_resid), aes(sample=x)) + stat_qq() + stat_qq_line() + theme_bw()
 
 
               ## main effect table & plot
@@ -886,12 +931,15 @@ species <- "mackerel"
               cov <- sd_report_1break_best$cov.fixed
               sde <- sapply(1:length(map), function(x) ifelse(is.na(x)==F, sqrt(diag(cov))[map[x]], NA))
               Estimates <- cbind(mle, sde)
+              Estimates <- rbind(Estimates, summary(sd_report_1break_best, "random"))
               rownames(Estimates) <- c(apply(cbind(colnames(XX),"before"),1, function(x) paste(x, collapse="_")), apply(cbind(colnames(XX),"after"),1, function(x) paste(x, collapse="_")),
-                                       apply(cbind(names(opt1break_best$par)[grep("sigma", names(opt1break_best$par))], rep(c("before", "after"),2)), 1, function(x) paste(x,collapse="_")))
+                                       apply(cbind(names(opt1break_best$par)[grep("sigma", names(opt1break_best$par))], rep(c("before", "after"),2)), 1, function(x) paste(x,collapse="_")),
+                                       apply(expand.grid(year=2014:2019, time=c("before", "after")), 1, function(x) paste(x,collapse="_")))
               Estimates <- as.data.frame(Estimates)
-              Estimates$gradient <- rep(NA, length(map))
-              Estimates$gradient <- opt1break_best$diagnostics$final_gradient[map[!is.na(map)]]
+              #Estimates$gradient <- rep(NA, length(map))
+              #Estimates$gradient <- opt1break_best$diagnostics$final_gradient[map[!is.na(map)]]
 
+              fake <- data.frame(Threshold = data_tmb$thresh, Likelihood = weight)
               plot(data_tmb$thresh, weight, type="b", main="", xlab="", ylab="")
               mtext(side = 1, line=3, "Recapture time (julian days)", cex=1.3)
               mtext(side = 2, line=3, "Likelihood", cex=1.3)
@@ -903,28 +951,61 @@ species <- "mackerel"
               text(x=255, y=0.057, "September")
               text(x=285, y=0.057, "October")
 
+              g_threshold <- ggplot(data=fake, aes(x=Threshold, y=Likelihood)) + geom_line() + theme_bw() + geom_point(pch=1, size=2)  +
+                geom_vline(xintercept=240, linetype=2) + geom_vline(xintercept=270, linetype=2) + geom_vline(xintercept=300, linetype=2) +
+                geom_text(data=data.frame(Threshold=255, Likelihood=0.057), label="September", size=5) +
+                geom_text(data=data.frame(Threshold=285, Likelihood=0.057), label="October", size=5) +
+                labs(x="Recapture time (julian days)")
+              #   labs(x="Recapture time (julian days)", title="Threshold value") +
+              #   theme(axis.title = element_text(size=15)) + theme(axis.title = element_text(size=15),
+              #                                                     plot.title = element_text(hjust = 0.5, size=20))
+              # g_threshold
+
 
               Estimates_df <- as.data.frame(Estimates[,1:2])
+
               colnames(Estimates_df) <- c("mean", "se")
               Estimates_df$group <- as.character(sapply(as.character(sapply(rownames(Estimates_df), function(x) str_sub(x, start=-6))), function(x) str_remove(x, "_")))
               Estimates_df$group <- factor(Estimates_df$group, levels=c("before","after"))
               Estimates_df$group <- factor(Estimates_df$group, labels=c("Before threshold","After threshold"))
-              Estimates_df$covariate <- c(rep(c("Intercept", "From_West", "> May 22nd", "body length (rescaled)", "recapture date (rescaled)", "From West + >May 22nd"), 2),
-                                          "log(sigma_obs)", "log(sigma_obs)", "log(sigma_year)", "log(sigma_year)")
-              #Estimates_df$mean[grep("sigma", Estimates_df$covariate)] <- exp(Estimates_df[grep("sigma", Estimates_df$covariate),'mean'])
-              #Estimates_df$covariate <- c(rep(c("Intercept", "From_West", "> May 22nd", "body length (rescaled)", "recapture date (rescaled)", "From West + >May 22nd"), 2),
+              # Estimates_df$covariate <- c(rep(c("Intercept", "From_South", "> May 22nd", "body length (rescaled)", "recapture date (rescaled)", "From South + >May 22nd"), 2),
+              #                             "log(sigma_obs)", "log(sigma_obs)", "log(sigma_year)", "log(sigma_year)", rep(2014:2019, 2))
+              Estimates_df$covariate <- c(rep(c("Intercept", "> May 22nd", "body length (rescaled)", "recapture date (rescaled)", "Latitude + <May 22nd", "Latitude + >May 22nd"
+                                                , "Latitude^2 + <May 22nd", "Latitude^2 + >May 22nd"), 2),
+                                          "log(sigma_obs)", "log(sigma_obs)", "log(sigma_year)", "log(sigma_year)", rep(2014:2019, 2))
+              # Estimates_df$covariate <- c(rep(c("Intercept", "> May 22nd", "body length (rescaled)", "recapture date (rescaled)", "Latitude", "Latitude^2"),2),
+              #                              "log(sigma_obs)", "log(sigma_obs)", "log(sigma_year)", "log(sigma_year)", rep(2014:2019, 2))
+              # #Estimates_df$mean[grep("sigma", Estimates_df$covariate)] <- exp(Estimates_df[grep("sigma", Estimates_df$covariate),'mean'])
+              #Estimates_df$covariate <- c(rep(c("Intercept", "From_South", "> May 22nd", "body length (rescaled)", "recapture date (rescaled)", "From South + >May 22nd"), 2),
               #                            "sigma_obs", "sigma_obs", "sigma_year", "sigma_year")
-              Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "From_West", "> May 22nd", "From West + >May 22nd", "body length (rescaled)", "recapture date (rescaled)", "log(sigma_obs)", "log(sigma_year)"))
-              levels(Estimates_df$covariate)[1] <- "Intercept (true_value add 12.0)"
-              Estimates_df$mean_transformed <- ifelse(Estimates_df$mean>12, Estimates_df$mean-12, Estimates_df$mean)
-              Estimates_df$x_fake = 2.0
+              #Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "> May 22nd", "From South + >May 22nd", "body length (rescaled)", "recapture date (rescaled)", "log(sigma_obs)", "log(sigma_year)", 2014:2019))
+              # Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "> May 22nd", "Latitude", "Latitude^2", "body length (rescaled)", "recapture date (rescaled)", "log(sigma_obs)", "log(sigma_year)", 2014:2019))
+              Estimates_df$covariate <- factor(Estimates_df$covariate, levels=c("Intercept", "> May 22nd", "Latitude + <May 22nd", "Latitude + >May 22nd", "Latitude^2 + <May 22nd", "Latitude^2 + >May 22nd", "body length (rescaled)", "recapture date (rescaled)", "log(sigma_obs)", "log(sigma_year)", 2014:2019))
+              levels(Estimates_df$covariate)[1] <- "Intercept (true_value add 8.0)"
+              Estimates_df$mean_transformed <- ifelse(Estimates_df$mean>8, Estimates_df$mean-8, Estimates_df$mean)
+              Estimates_df$x_fake = 4.5
               Estimates_df$label = paste0("", round(Estimates_df$mean, 3))
 
               library(ggplot2)
               ggplot(Estimates_df, aes(x=mean_transformed, y=covariate)) + facet_grid(.~ group) + geom_point() +
                 geom_errorbar(aes(xmin=mean_transformed-1.96*se, xmax=mean_transformed+1.96*se, width=0.1))+
-                geom_vline(xintercept=0, linetype=2) + theme_bw() + coord_cartesian(xlim=c(-3.7,3.3)) +
+                geom_vline(xintercept=0, linetype=2) + theme_bw() + coord_cartesian(xlim=c(-4,6.3)) +
                 geom_text(aes(x=x_fake, y=covariate, label=label),size=3,hjust=0)
+
+
+              # Marginal effect of release latitude
+              latitude <- seq(min(Data_mackerel_use_Ireland_select$la), max(Data_mackerel_use_Ireland_select$la),by=0.01)
+              latitude_scaled <- (latitude-mean(Data_mackerel_use_Ireland_select$la))/sd(Data_mackerel_use_Ireland_select$la)
+              latitude2 <- latitude^2
+              latitude2_scaled <- (latitude2 - mean((Data_mackerel_use_Ireland_select$la)^2))/sd((Data_mackerel_use_Ireland_select$la)^2)
+
+              par(cex.axis=1.2, cex.lab=1.3, cex.main=1.4)
+              lat_effect_firsthalf <- 8.872+latitude_scaled*3.252-3.456*latitude2_scaled
+              plot(latitude, lat_effect_firsthalf, type="l", lwd=2, xlab="Latitude (°)", ylab="Effect", main ="Effect of latitude on movement rate")
+              lat_effect_secondhalf <- 8.872-0.534*latitude_scaled+0.405*latitude2_scaled
+              lines(latitude, lat_effect_secondhalf, col="red", lwd=2)
+              legend("topright", c("First half", "Second half"), col=c("black", "red"), lty=1, lwd=2, bty="n", cex=1.1)
+              rug(Data_mackerel_use_Ireland_select$la)
 
               # Likelihood profile & residual
               par(mfrow=c(5,5), oma=c(1,1,1,1), mar=c(2,3,3,1))
@@ -953,14 +1034,32 @@ species <- "mackerel"
               if (model_choice == "lme") source(paste0(getwd(), "/R/cross_validation_RE.R"))
 
 
+            # group together the model selection results
+              library(gridExtra)
+              grid.arrange(g1, g2, g_resid, g_threshold, nrow=2)
+
       # a bit more plot of the best threshold model
-      plot(Data_mackerel_use_Ireland_select$julian_recapture_scaled, Data_mackerel_use_Ireland_select$log_rate,
-           xlab="recapture data (julian days)", ylab = "log(movement rate)")
-      points(subset(Data_mackerel_use_Ireland_select, Tag_area=="West_Ireland")$julian_recapture_scaled, Prediction[which(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland")], col="red3", pch=20, cex=0.5)
-      points(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland")$julian_recapture_scaled, Prediction[which(Data_mackerel_use_Ireland_select$Tag_area == "North_Ireland")], col="blue3", pch=20, cex=0.5)
-
-
-
+        plot(Data_mackerel_use_Ireland_select$julian_recapture_scaled, Data_mackerel_use_Ireland_select$log_rate,
+             xlab="recapture data (julian days)", ylab = "log(movement rate)", cex=0.5, col=grey(0.5))
+        points(subset(Data_mackerel_use_Ireland_select, Tag_area=="South_Ireland")$julian_recapture_scaled, Prediction[which(Data_mackerel_use_Ireland_select$Tag_area == "South_Ireland")], col="red3", pch=20, cex=0.5)
+        points(subset(Data_mackerel_use_Ireland_select, Tag_area=="North_Ireland")$julian_recapture_scaled, Prediction[which(Data_mackerel_use_Ireland_select$Tag_area == "North_Ireland")], col="blue3", pch=20, cex=0.5)
+        #points(Data_mackerel_use_Ireland_select$julian_recapture_scaled, mu_pred_best[,1], col="red3", pch=17, cex=0.5)
+        #points(Data_mackerel_use_Ireland_select$julian_recapture_scaled, mu_pred_best[,2], col="blue3", pch=16, cex=0.5)
+        dat_plot <- data.frame(Recap_date = Data_mackerel_use_Ireland_select$julian_recapture_std,
+                               Group1_prediction = mu_pred_best[,1],
+                               Group2_prediction = mu_pred_best[,2],
+                               Final_prediction = Prediction,
+                               Obs=Data_mackerel_use_Ireland_select$log_rate)
+        dat_plot_df <- reshape2::melt(dat_plot, id.vars=c("Recap_date", "Obs"), variable.name=c("Variable"))
+        dat_plot_df$Variable <- as.factor(dat_plot_df$Variable)
+        ggplot(dat_plot_df, aes(x=Recap_date, y=value, col=Variable, shape=Variable)) + geom_point() +
+          theme_bw() + geom_point(aes(x=Recap_date, y=Obs), pch=1, col="black", cex=0.7) +
+          scale_color_manual(values = c("#e69F00", "#0072B2", "#CC79A7")) #viridis_d(begin=0.1, direction = -1) +
+        ggplot(subset(dat_plot_df, Variable != "Final_prediction"), aes(x=Recap_date, y=value, shape=Variable)) + geom_point(col=grey(0.99)) +
+          theme_bw() + geom_point(aes(x=Recap_date, y=Obs), pch=1, col="black", cex=0.7)
+        ggplot(subset(dat_plot_df, Variable != "Final_prediction"), aes(x=Recap_date, y=value, col=Variable, shape=Variable)) + geom_point() +
+          theme_bw() + geom_point(aes(x=Recap_date, y=Obs), pch=1, col="black", cex=0.7) +
+          scale_color_manual(values = c("#e69F00", "#0072B2")) #viridis_d(begin=0.1, direction = -1) +
 
         # A 2 break points
             run_2breakpoint_model <- function(){
@@ -977,7 +1076,7 @@ species <- "mackerel"
                                Nthres=length(threshold_vals),
                                thresh=threshold_vals,
                                mean_diff_tag_area= mean_diff_tag_area,
-                               is_from_west=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "West_Ireland",1,0),
+                               is_from_South=ifelse(Data_mackerel_use_Ireland_select$Tag_area == "South_Ireland",1,0),
                                thres_cov = Data_mackerel_use_Ireland_select$julian_std,
                                y = Data_mackerel_use_Ireland_select$log_rate,
                                Likconfig = 0      # 0 = dnorm, 1 = dgamma
@@ -1088,6 +1187,63 @@ species <- "mackerel"
 				# But it is technically the same model... just a different platform
 
 
+      # grouping by year, area, and release timing
+      dat_release_grouped  <- Data_mackerel_all %>% filter(Tag_area %in% c("South_Ireland", "North_Ireland"),
+                                                  Release_year %in% 2014:2019) %>%
+        mutate(Tag_area = droplevels(Tag_area), Release_year = droplevels(Release_year)) %>%
+        group_by(Release_year, Tag_area, Release_timing, .drop = FALSE) %>% summarize(n_release=n())
+      dat_recap_grouped  <- Data_mackerel_use_Ireland_select %>% mutate(Tag_area = droplevels(Tag_area)) %>%
+        group_by(Release_year, Tag_area, Release_timing, .drop = FALSE) %>%
+        summarize(n_recap=n())
+
+      dat_recap_grouped$n_release <- dat_release_grouped$n_release
+      dat_recap_grouped$recap_rate <- dat_recap_grouped$n_recap/dat_release_grouped$n_release
+
+      # grouping by year, area
+      dat_release_grouped1  <- Data_mackerel_all %>% filter(Tag_area %in% c("South_Ireland", "North_Ireland"),
+                                                  Release_year %in% 2014:2019) %>%
+        mutate(Tag_area = droplevels(Tag_area), Release_year = droplevels(Release_year)) %>%
+        group_by(Release_year, Tag_area, .drop = FALSE) %>% summarize(n_release=n())
+      dat_recap_grouped1  <- Data_mackerel_use_Ireland_select %>% mutate(Tag_area = droplevels(Tag_area)) %>%
+        group_by(Release_year, Tag_area, .drop = FALSE) %>%
+        summarize(n_recap=n())
+
+      dat_recap_grouped1$n_release <- dat_release_grouped1$n_release
+      dat_recap_grouped1$recap_rate <- dat_recap_grouped1$n_recap/dat_release_grouped1$n_release
+
+      # grouping by year
+      dat_release <- Data_mackerel_all %>% filter(Tag_area %in% c("South_Ireland", "North_Ireland"),
+                                                  Release_year %in% 2014:2019) %>%
+        mutate(Tag_area = droplevels(Tag_area), Release_year = droplevels(Release_year)) %>%
+        group_by(Release_year, .drop = FALSE) %>% summarize(n_release=n())
+      dat_recap <- Data_mackerel_use_Ireland_select %>% mutate(Tag_area = droplevels(Tag_area)) %>%
+        group_by(Release_year, .drop = FALSE) %>%
+        summarize(n_recap=n())
+
+      dat_recap$n_release <- dat_release$n_release
+      dat_recap$recap_rate <- dat_recap$n_recap/dat_release$n_release
+
+
+      write.csv(dat_recap, file=paste0("../plots/to_aril/summary_recapture_coarse.csv"))
+      write.csv(dat_recap_grouped1, file=paste0("../plots/to_aril/summary_recapture_year_area.csv"))
+      write.csv(dat_recap_grouped, file=paste0("../plots/to_aril/summary_recapture_group.csv"))
+
+
+      # For Northern Ireland
+      map_area <- get_stamenmap(c(left = -32, bottom = 51, right = 21, top = 72), maptype = "toner-lite", zoom=5)
+      g1 <- ggmap(map_area) +
+        geom_jitter(data=subset(Data_mackerel_use_Ireland_select, Tag_area == "North_Ireland"), aes(x=cLon, y=cLat,col=duration), pch=16) +
+        scale_color_viridis_c() + facet_wrap(. ~ Release_year) +
+        scale_size_continuous(breaks=c(1,10,100,1000),range = c(0.3, 6))
+      g1
+
+      g2 <- ggmap(map_area) +
+        geom_jitter(data=subset(Data_mackerel_use_Ireland_select, Tag_area == "South_Ireland"), aes(x=cLon, y=cLat,col=duration), pch=16) +
+        scale_color_viridis_c() + facet_wrap(. ~ Release_year) +
+        scale_size_continuous(breaks=c(1,10,100,1000),range = c(0.3, 6))
+      g2
+
+      Data_mackerel_use_Ireland_select %>% group_by(Release_timing) %>% summarize(quantile(la_scaled, seq(0.1,0.9,0.1)))
 
 
 ############# In the section below are some "nice" plots to investigate the mackerel distribution pattern
@@ -1095,17 +1251,21 @@ species <- "mackerel"
 
 ############ Some nice plots to look at mark recapture pattern
 
+    Norway <- st_read("C:/Users/a23092/Documents/Projects/Shapefiles/ne_10m_land.shp")
+    Norway <- st_crop(Norway, c(xmin = -35, ymin = 51, xmax = 21, ymax = 73))
+
+
 		#### Ivestigate the effect of release timing on the pattern of mackerel distribution
 		plot_timerelease_simple <- function(Year, lag=0)
 		{
 				  dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-				                                              Tag_area %in% c("West_Ireland", "North_Ireland"))
+				                                              Tag_area %in% c("South_Ireland", "North_Ireland"))
 				  dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
 				  dat_release$Tag_area <- as.character(dat_release$Tag_area)
 				  dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-				  dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+				  dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
 				  dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
-				                                                Tag_area %in% c("West_Ireland", "North_Ireland"))
+				                                                Tag_area %in% c("South_Ireland", "North_Ireland"))
 				  dat_recap$julian <-  as.numeric(julian(dat_recap$recapturedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
 				  dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
 				  dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
@@ -1121,9 +1281,9 @@ species <- "mackerel"
 				  ncount_release$lat = c(53)
 				  ncount_release$label = paste0("n=", ncount_release$n)
 				  ncount_recap <- dat_recap %>% count()
-				  ncount_recap$lon = c(-10)
+				  ncount_recap$lon = c(-16)
 				  ncount_recap$lat = c(70)
-				  ncount_recap$label = paste0("n=", ncount_recap$n)
+				  ncount_recap$label = paste0("n=", ncount_recap$n, " (rate=", round(ncount_recap$n/ncount_release$n,3)*100, "%)")
 				  Select_catch <- subset(Catch_data, subset=c(catchdate ==Year+lag))
 				  Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
 				  Select_catch <- subset(Select_catch, cLat<72)
@@ -1140,20 +1300,21 @@ species <- "mackerel"
 				  hull_new1 <- hull_new
 
 				  area <- Polygon(hull_new[,c('cLon','cLat')])@area
-				  g1 <- ggmap(map_area) + geom_point(data=dat_release_new, aes(x=lo, y=la,col=julian_release, size=n)) +
+				  g1 <- ggplot(Norway) + geom_sf() + geom_point(data=dat_release_new, aes(x=lo, y=la,col=julian_release, size=n)) +
 				    #geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat)) +
 				    scale_color_viridis_c() +
 				    scale_size_continuous(breaks=c(1,10,100,1000),range = c(0.3, 6)) +
 				    new_scale_color() +
-				    geom_point(data=dat_recap_new, aes(x=cLon, y=cLat, col=julian_recapture, size=n)) +
+				    geom_point(data=dat_recap_new, aes(x=cLon, y=cLat, size=n)) +
 				    scale_color_viridis_c() +
 				    #scale_size_continuous(range = c(0.3, 0.6)) +
-				    geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
+				    geom_text(data=data.frame(x=-8,y=72,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
 				    geom_text(data=data.frame(x=-26,y=55,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
-				    ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) #+
+				    ggtitle(Year) #+
 				    #geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
 				  g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0) +
-				    geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0)
+				    geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0) + labs(x="Longitude", y="Latitude") +
+				    theme_bw() + theme(plot.title = element_text(hjust = 0.5))
 				  g1
 
 				  RES <- list()
@@ -1180,24 +1341,26 @@ species <- "mackerel"
 					  # lm1 <- (lm(Size_area ~ Time_release + Year, areas_df))
 
 					  ## Plotting
-					  if(length(Years)<=4){
-					    ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=2, ncol=2)
-					    ggsave(ggg_timerelease_size, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
-					  }
-					  if(length(Years)>4 & length(Years)>=8){
-					    ggg_timerelease_size1 <- arrangeGrob(grobs=map(SAVE[1:4], pluck, "plot"), nrow=2, ncol=2)
-					    ggg_timerelease_size2 <- arrangeGrob(grobs=map(SAVE[5:length(Years)], pluck, "plot"), nrow=2, ncol=2)
-					    ggsave(ggg_timerelease_size1, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part1.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
-					    ggsave(ggg_timerelease_size2, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part2.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
-					  }
-					  if(length(Years)>8){
-					    ggg_timerelease_size1 <- arrangeGrob(grobs=map(SAVE[1:4], pluck, "plot"), nrow=2, ncol=2)
-					    ggg_timerelease_size2 <- arrangeGrob(grobs=map(SAVE[5:8], pluck, "plot"), nrow=2, ncol=2)
-					    ggg_timerelease_size3 <- arrangeGrob(grobs=map(SAVE[9:length(Years)], pluck, "plot"), nrow=2, ncol=2)
-					    ggsave(ggg_timerelease_size1, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part1.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
-					    ggsave(ggg_timerelease_size2, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part2.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
-					    ggsave(ggg_timerelease_size3, filename=paste0("../plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part3.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
-					  }
+					  ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+					  ggsave(ggg_timerelease_size, filename=paste0(getwd(), "/plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+					  # if(length(Years)<=4){
+					  #   ggg_timerelease_size <- arrangeGrob(grobs=map(SAVE, pluck, "plot"), nrow=3, ncol=2)
+					  #   ggsave(ggg_timerelease_size, filename=paste0(getwd(), "/plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, ".pdf"), width=32, height=32, units="cm", device = "pdf", dpi = 400)
+					  # }
+					  # if(length(Years)>4 & length(Years)<=8){
+					  #   ggg_timerelease_size1 <- arrangeGrob(grobs=map(SAVE[1:4], pluck, "plot"), nrow=2, ncol=2)
+					  #   ggg_timerelease_size2 <- arrangeGrob(grobs=map(SAVE[5:length(Years)], pluck, "plot"), nrow=2, ncol=2)
+					  #   ggsave(ggg_timerelease_size1, filename=paste0(getwd(), "/plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part1.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  #   ggsave(ggg_timerelease_size2, filename=paste0(getwd(), "/plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part2.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  # }
+					  # if(length(Years)>8){
+					  #   ggg_timerelease_size1 <- arrangeGrob(grobs=map(SAVE[1:4], pluck, "plot"), nrow=2, ncol=2)
+					  #   ggg_timerelease_size2 <- arrangeGrob(grobs=map(SAVE[5:8], pluck, "plot"), nrow=2, ncol=2)
+					  #   ggg_timerelease_size3 <- arrangeGrob(grobs=map(SAVE[9:length(Years)], pluck, "plot"), nrow=2, ncol=2)
+					  #   ggsave(ggg_timerelease_size1, filename=paste0(getwd(), "/plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part1.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  #   ggsave(ggg_timerelease_size2, filename=paste0(getwd(), "/plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part2.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  #   ggsave(ggg_timerelease_size3, filename=paste0(getwd(), "/plots/mark_recap_raw_", Years[1], "_", tail(Years, 1), "_lag", lag, "_part3.pdf"), width=32, height=26, units="cm", device = "pdf", dpi = 400)
+					  # }
 
 					  #RES <- list()
 					  #RES$areas <- areas.std
@@ -1206,7 +1369,7 @@ species <- "mackerel"
 					}
 
 		# no lag : same year to 2 years lag in recapture
-		(Area_timing_lag0 <- Make_plot_timing_simple(Years=2011:2019, lag=0))
+		(Area_timing_lag0 <- Make_plot_timing_simple(Years=2014:2019, lag=0))
 		(Area_timing_lag1 <- Make_plot_timing_simple(Years=2011:2018, lag=1))
 		(Area_timing_lag2 <- Make_plot_timing_simple(Years=2011:2017, lag=2))
 
@@ -1222,16 +1385,23 @@ species <- "mackerel"
     plot_region <- function(Year, lag=0)
     {
       dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
       dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
       dat_release$Tag_area <- as.character(dat_release$Tag_area)
       dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
       dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
+      dat_recap$julian <-  as.numeric(julian(dat_recap$recapturedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
       dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
       dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
-      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
+
+      dat_recap_new <- as_tibble(dat_recap) %>% dplyr::select(cLon, cLat, Tag_area, julian) %>% count(round(cLon,1), round(cLat,1), Tag_area, round(julian,0))
+      colnames(dat_recap_new) <- c("cLon", "cLat", "Tag_area", "julian_recapture", "n")
+
+      dat_release_new <- as_tibble(dat_release) %>% dplyr::select(lo, la, Tag_area, julian) %>% count(round(lo,1), round(la,1), Tag_area, round(julian,0))
+      colnames(dat_release_new) <- c("lo", "la", "Tag_area", "julian_release", "n")
 
       ncount_release <- dat_release %>% group_by(Tag_area) %>% count()
       ncount_release$lon = c(-30, -30)
@@ -1254,7 +1424,7 @@ species <- "mackerel"
       hull$Category <- paste(hull$Tag_area, sep="_")
       hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
 
-      cats <- c("From N. Ireland", "From W. Ireland")
+      cats <- c("From N. Ireland", "From S. Ireland")
       gravity <- hull %>% group_by(Category) %>%
         mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
         dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
@@ -1298,15 +1468,18 @@ species <- "mackerel"
 #
 #       prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
 
-      g1 <- ggmap(map_area) + geom_jitter(data=dat_release, aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
-        geom_point(data=dat_recap, aes(x=cLon, y=cLat), size=0.3, col="black") +
+      g1 <- ggmap(map_area) + geom_point(data=dat_release_new, aes(x=lo, y=la,col=julian_release, size=n)) +
+        scale_color_viridis_c() +
+        scale_size_continuous(breaks=c(1,10,100,1000),range = c(0.3, 6)) +
+        new_scale_color() +
+        geom_point(data=dat_recap_new, aes(x=cLon, y=cLat, size=n)) +
+        scale_color_viridis_c() +
         geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
         scale_fill_manual(values = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)]) +
-        scale_color_viridis_c() +
         geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
         geom_text(data=data.frame(x=-26,y=60,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
-        ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
-        geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA)
+        ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) #+
+        #geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA)
         g1 <- g1 + geom_text(data=ncount_release, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)]) +
           geom_text(data=ncount_recap, aes(x=lon, y=lat, label=label), hjust=0, col = RColorBrewer::brewer.pal(3, "Set1")[c(1,2)])
 
@@ -1353,16 +1526,16 @@ species <- "mackerel"
     plot_timerelease <- function(Year, lag=0)
     {
       dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
       dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
       dat_release$Tag_area <- as.character(dat_release$Tag_area)
       dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
       dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
       dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
       dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
-      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
 
       ncount_release <- dat_release %>% group_by(Release_timing) %>% count()
       ncount_release$lon = c(-30, -30)
@@ -1386,8 +1559,8 @@ species <- "mackerel"
       hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
       #hull$Category <- as.factor(hull$Category)
       #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
-      #                                                "From N. Ireland_Late", "From W. Ireland_Early",
-      #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+      #                                                "From N. Ireland_Late", "From S. Ireland_Early",
+      #                                                "From S. Ireland_Mid", "From S. Ireland_Late"))
       cats <- c("First_half", "Second_half")
       gravity <- hull %>% group_by(Category) %>%
         mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
@@ -1494,16 +1667,16 @@ species <- "mackerel"
     plot_fishsize <- function(Year, lag=0)
     {
       dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
       dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
       dat_release$Tag_area <- as.character(dat_release$Tag_area)
       dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
       dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
       dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
       dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
-      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
 
       ncount_release <- dat_release %>% group_by(length_bin) %>% count()
       ncount_release$lon = c(-32, -32, -32)
@@ -1527,8 +1700,8 @@ species <- "mackerel"
       hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
       #hull$Category <- as.factor(hull$Category)
       #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
-      #                                                "From N. Ireland_Late", "From W. Ireland_Early",
-      #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+      #                                                "From N. Ireland_Late", "From S. Ireland_Early",
+      #                                                "From S. Ireland_Mid", "From S. Ireland_Late"))
       cats <- c("(0,34cm]", "(34cm,37cm]","(37cm,45cm]")
       gravity <- hull %>% group_by(Category) %>%
         mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
@@ -1635,21 +1808,28 @@ species <- "mackerel"
      plot_region_timerelease <- function(Year, lag=0)
      {
         dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-                                                      Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                      Tag_area %in% c("South_Ireland", "North_Ireland"))
         dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
         dat_release$Tag_area <- as.character(dat_release$Tag_area)
         dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-        dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+        dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
         dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
-                                                      Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                      Tag_area %in% c("South_Ireland", "North_Ireland"))
+        dat_recap$julian <-  as.numeric(julian(dat_recap$recapturedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
         dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
         dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
-        dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+        dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
         # dat_recap <- dat_recap %>% mutate(Release_timing = ifelse(Release_monthday <= "5_14", "Early",
         # ifelse((Release_monthday <= "5_31" & Release_monthday >= "5_15"), "Mid", "Late")))
 
         dat_release$Category <- paste(dat_release$Tag_area, dat_release$Release_timing, sep="_")
         dat_recap$Category <- paste(dat_recap$Tag_area, dat_recap$Release_timing, sep="_")
+
+        dat_recap_new <- as_tibble(dat_recap) %>% dplyr::select(cLon, cLat, Tag_area, Release_timing, julian) %>% count(round(cLon,1), round(cLat,1), Tag_area, Release_timing, round(julian,0))
+        colnames(dat_recap_new) <- c("cLon", "cLat", "Tag_area", "Release_timing", "julian_recapture", "n")
+
+        dat_release_new <- as_tibble(dat_release) %>% dplyr::select(lo, la, Tag_area, Release_timing, julian) %>% count(round(lo,1), round(la,1), Tag_area, Release_timing, round(julian,0))
+        colnames(dat_release_new) <- c("lo", "la", "Tag_area", "Release_timing", "julian_release", "n")
 
         ncount_recap <- dat_recap %>% group_by(Category) %>% count()
         morethan3 <- which(ncount_recap$n >= 3)
@@ -1675,10 +1855,10 @@ species <- "mackerel"
         hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
         #hull$Category <- as.factor(hull$Category)
         #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
-        #                                                "From N. Ireland_Late", "From W. Ireland_Early",
-        #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+        #                                                "From N. Ireland_Late", "From S. Ireland_Early",
+        #                                                "From S. Ireland_Mid", "From S. Ireland_Late"))
         cats <- c("From N. Ireland_First_half", "From N. Ireland_Second_half",
-                  "From W. Ireland_First_half", "From W. Ireland_Second_half")
+                  "From S. Ireland_First_half", "From S. Ireland_Second_half")
         gravity <- hull %>% group_by(Category) %>%
           mutate(mean_lon= mean(cLon), mean_lat= mean(cLat)) %>%
           dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
@@ -1721,15 +1901,19 @@ species <- "mackerel"
         #
         # prop_size_text <- data.frame(lon=-31, lat=seq(58,56+2.5*length(unique(prop_size$lat)),by=2.5), label=unique(prop_size$Category))
 
-        g1 <- ggmap(map_area) + geom_jitter(data=dat_release, aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
-          geom_point(data=dat_recap, aes(x=cLon, y=cLat), size=0.3, col="black") +
+        g1 <- ggmap(map_area) + geom_point(data=dat_release_new, aes(x=lo, y=la,col=julian_release, size=n)) +
+          scale_color_viridis_c() +
+          scale_size_continuous(breaks=c(1,10,100,1000),range = c(0.3, 6)) +
+          new_scale_color() +
+          geom_point(data=dat_recap_new, aes(x=cLon, y=cLat, size=n)) +
+          scale_color_viridis_c() +
           geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
           scale_fill_manual(values = RColorBrewer::brewer.pal(4, "Set1")[1:nrow(ncount_release)]) +
-          scale_color_viridis_c() +
           geom_text(data=data.frame(x=-8,y=71,label="Nsamp recapture:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
           geom_text(data=data.frame(x=-25,y=60,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black", fontface="bold") +
           ggtitle(Year) + theme(plot.title = element_text(hjust = 0.5)) +
-          geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
+          scale_size(guide = 'none')
+          #geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA) #+
         # geom_scatterpie(aes(x=lon, y=lat, group = Category, r=r),
         #                data = prop_size_wide, cols = colnames(prop_size_wide[,-c(1:4)]))+
         # geom_text(data=prop_size_text, aes(x=lon, y=lat, label=label), size=2, hjust = 0)
@@ -1781,16 +1965,16 @@ species <- "mackerel"
      plot_region_time_size <- function(Year, lag=0)
      {
        dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-                                                     Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                     Tag_area %in% c("South_Ireland", "North_Ireland"))
        dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
        dat_release$Tag_area <- as.character(dat_release$Tag_area)
        dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-       dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+       dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
        dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year+lag &
-                                                     Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                     Tag_area %in% c("South_Ireland", "North_Ireland"))
        dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
        dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
-       dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+       dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
        # dat_recap <- dat_recap %>% mutate(Release_timing = ifelse(Release_monthday <= "5_14", "Early",
        # ifelse((Release_monthday <= "5_31" & Release_monthday >= "5_15"), "Mid", "Late")))
 
@@ -1831,10 +2015,10 @@ species <- "mackerel"
        hull <- hull %>% group_by(Category) %>% filter(n()> 2) %>% ungroup()
        #hull$Category <- as.factor(hull$Category)
        #hull$Category <- factor(hull$Category, levels=c("From N. Ireland_Early", "From N. Ireland_Mid",
-       #                                                "From N. Ireland_Late", "From W. Ireland_Early",
-       #                                                "From W. Ireland_Mid", "From W. Ireland_Late"))
+       #                                                "From N. Ireland_Late", "From S. Ireland_Early",
+       #                                                "From S. Ireland_Mid", "From S. Ireland_Late"))
        cats <- c("From N. Ireland_First_half", "From N. Ireland_Second_half",
-                 "From W. Ireland_First_half", "From W. Ireland_Second_half")
+                 "From S. Ireland_First_half", "From S. Ireland_Second_half")
        size <- levels(Data_mackerel_use_Ireland_select$length_bin)
        cats <- expand.grid(cats, size)
        cats <- apply(cats, 1, function(x) paste(x, collapse="_"))
@@ -1945,16 +2129,16 @@ species <- "mackerel"
     plot_Yr_duration <- function(Year)
     {
       dat_release <- Data_mackerel_all %>% subset(Release_year==Year &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
       dat_release$julian <-  as.numeric(julian(dat_release$relesedate, as.POSIXct(paste0(Year, "-01-01"), tz = "GMT")))
       dat_release$Tag_area <- as.character(dat_release$Tag_area)
       dat_release$Tag_area <- as.factor(dat_release$Tag_area)
-      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
       dat_recap <- Data_mackerel_final %>% subset(Release_year==Year & Catch_year==Year &
-                                                    Tag_area %in% c("West_Ireland", "North_Ireland"))
+                                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
       dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
       dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
-      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From W. Ireland"))
+      dat_recap$Tag_area <- factor(dat_recap$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
 
       dat_recap$duration_bin <- cut(dat_recap$duration, breaks=c(0,100,150,250))
 
@@ -1977,11 +2161,11 @@ species <- "mackerel"
         dplyr::select(Category, mean_lon, mean_lat) %>% dplyr::distinct()
       #area <- hull %>% group_by(Category) %>% Polygon()
 
-      g1 <- ggmap(map_area) + geom_jitter(data=subset(dat_release, Tag_area=="From W. Ireland"), aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
-        geom_point(data=subset(dat_recap, Tag_area=="From W. Ireland"), aes(x=cLon, y=cLat), size=0.3, col="black") +
+      g1 <- ggmap(map_area) + geom_jitter(data=subset(dat_release, Tag_area=="From S. Ireland"), aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
+        geom_point(data=subset(dat_recap, Tag_area=="From S. Ireland"), aes(x=cLon, y=cLat), size=0.3, col="black") +
         geom_jitter(data=subset(dat_release, Tag_area=="From N. Ireland"), aes(x=lo, y=la,col=julian), size=0.3, shape=4, width = 0.2, height = 0.2) +
-        geom_text(data=subset(ncount_recap, Tag_area=="From W. Ireland"), aes(x=lon, y=lat, label=label), col="red") +
-        geom_text(data=subset(ncount_release, Tag_area=="From W. Ireland"), aes(x=lon, y=lat, label=label), col="red")  +
+        geom_text(data=subset(ncount_recap, Tag_area=="From S. Ireland"), aes(x=lon, y=lat, label=label), col="red") +
+        geom_text(data=subset(ncount_release, Tag_area=="From S. Ireland"), aes(x=lon, y=lat, label=label), col="red")  +
         geom_text(data=subset(ncount_recap, Tag_area=="From N. Ireland"), aes(x=lon, y=lat, label=label), col="blue") +
         geom_text(data=subset(ncount_release, Tag_area=="From N. Ireland"), aes(x=lon, y=lat, label=label), col="blue") +
         geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat, fill = Category)) +
@@ -1994,7 +2178,7 @@ species <- "mackerel"
       return(g1)
     }
 
-    ## 2011-2013, there is no recapture originating from both West and North side of Ireland
+    ## 2011-2013, there is no recapture originating from both South and North side of Ireland
     p2014_duration <- plot_Yr_duration(2014)
     p2015_duration <- plot_Yr_duration(2015)
     p2016_duration <- plot_Yr_duration(2016)
@@ -2109,14 +2293,14 @@ species <- "mackerel"
 #
 #   #### Limiting the analysis to releases around Ireland:
 #
-#   Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("West_Ireland", "North_Ireland"))
+#   Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("South_Ireland", "North_Ireland"))
 #
 #   ## Using duration (not standardized) but focusing on within year recapture
 #   Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 200)
 #   Data_mackerel_use_Ireland_select$location <- with(Data_mackerel_use_Ireland_select, glmmTMB::numFactor(lo,la))
 #   levels(Data_mackerel_use_Ireland_select$location)
 #   Data_mackerel_use_Ireland_select$group <- factor(rep(1, nrow(Data_mackerel_use_Ireland_select)))
-#   # Movement East_West
+#   # Movement East_South
 #     library(glmmTMB)
 #     #mm0 <- glmmTMB(EW_move/1000 ~ offset(duration) + length + Tag_area, family=gassian, data=Data_mackerel_use_Ireland_select)
 #     m0 <-  gam(EW_move/1000 ~ offset(duration) + s(length) + Tag_area, family=gaussian, data=Data_mackerel_use_Ireland_select)
