@@ -1,0 +1,635 @@
+# ---------------------------------
+# ----------------------------------
+# KOTARO:
+#  To run this script, remember to first run main.R until about line 170
+#  The Figure 1 is created from here to ~ line 115
+# ----------------------------------
+
+lag = 0
+years <- 2014:2019
+library(lubridate)
+library(sf)
+dat_release <- Data_mackerel_all %>% subset(Tag_area %in% c("South_Ireland", "North_Ireland"))
+dat_release$julian <-  sapply(1:nrow(dat_release), function(k) as.numeric(julian(dat_release$relesedate[k],
+                                                                                 as.POSIXct(paste0(dat_release$Release_year[k], "-01-01"), tz = "GMT"))))
+dat_release$Tag_area <- as.character(dat_release$Tag_area)
+dat_release$Tag_area <- as.factor(dat_release$Tag_area)
+dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
+
+dat_recap <- Data_mackerel_final
+dat_recap$Release_year <- as.integer(as.character(dat_recap$Release_year))
+dat_recap <- dat_recap %>% subset(Catch_year==Release_year+lag &
+                                              Tag_area %in% c("South_Ireland", "North_Ireland"))
+dat_recap$julian <-  sapply(1:nrow(dat_recap), function(k) as.numeric(julian(dat_recap$recapturedate[k], as.POSIXct(paste0(dat_recap$Release_year[k], "-01-01"), tz = "GMT"))))
+dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
+dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
+
+dat_release <- filter(dat_release, Release_year %in% years)
+dat_recap <- filter(dat_recap, Release_year %in% years)
+
+dat_recap_new <- as_tibble(dat_recap)%>% dplyr::select(cLon, cLat, julian, Release_year) %>%
+  group_by(Release_year) %>% count(round(cLon,1), round(cLat,1), round(julian,0))
+colnames(dat_recap_new) <- c("Release_year", "cLon", "cLat", "julian_recapture", "n")
+
+
+
+
+dat_release_new <- as_tibble(dat_release) %>% dplyr::select(lo, la, julian, Release_year) %>%
+  group_by(Release_year) %>% count(round(lo,1), round(la,1), round(julian,0))
+colnames(dat_release_new) <- c("Release_year", "lo", "la", "julian_release", "n")
+
+
+ncount_release <- dat_release %>% group_by(Release_year) %>% count()
+ncount_release$lon = c(-32)
+ncount_release$lat = c(53)
+ncount_release$label = paste0("N-released = ", ncount_release$n)
+ncount_recap <- dat_recap %>% group_by(Release_year) %>% count()
+ncount_recap$lon = c(-16)
+ncount_recap$lat = c(70)
+ncount_recap$label = paste0("N-recaptured = ", ncount_recap$n, "\n (rate = ", round(ncount_recap$n/ncount_release$n,3)*100, "%)")
+Select_catch <- filter(Catch_data, year(catchdate) %in% as.integer(years+lag))
+Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
+Select_catch <- subset(Select_catch, cLat<72)
+# --- Should select take out catches prior <= may   ---
+# --- but this info is not in Catch_data            ---
+#Select_catch <- filter(Select_catch) # catches from june - december
+hull_catch <- NULL
+for(i in 1:length(years)){
+(hull_catch <- rbind(hull_catch, filter(Select_catch, year(catchdate) == years[i],
+                                        month(processing_date) %in% 6:12) %>%
+                       dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat, catchdate) %>%
+  mutate(Release_year = year(catchdate))))
+}
+
+
+(weights <- Catch_data %>% filter(between(month(catchdate), 6,12)) %>% mutate(catchyear = year(catchdate)) %>%
+  group_by(catchyear) %>% summarize(biomass = sum(weight/1e6)) %>% filter(between(catchyear,2014,2019)) %>%
+  rename(Release_year = catchyear) %>% add_column(xpos = -Inf, ypos = Inf)
+)
+area <- Polygon(hull_new[,c('cLon','cLat')])@area
+Norway <- st_read("shapefile/ne_10m_land.shp")
+Norway <- st_crop(Norway, c(xmin = -31, ymin = 50, xmax = 19, ymax = 70))
+
+#dat_release_new[which.max(dat_release_new$lo) ,"lo"] <- -dat_release_new[which.max(dat_release_new$lo) ,"lo"]
+g1 <- ggplot(Norway) + geom_sf() +
+  geom_point(data=dat_release_new %>% arrange(desc(n)),
+             aes(x=lo, y=la,col=julian_release, size=n)) +
+  #geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat)) +
+  scale_color_viridis_c(limits = c(120, 160), name = "Julian\nRelease",
+                        breaks = seq(120,160,5),
+                        guide = guide_colorbar(barheight = 20, ticks.colour = "grey20")) +
+  #guides(color = guide_colorbar(barheight = 15))+
+  scale_size_continuous(breaks=c(1,10,100,1000,5000),range = c(1, 6), name = "#Releases") +
+
+  new_scale_color() +
+  geom_point(data=dat_recap_new %>% arrange(desc(julian_recapture)),
+             aes(x=cLon, y=cLat, col = julian_recapture),
+             size = 3,
+                 #size = 900+200*order(julian_recapture, decreasing = FALSE)/nrow(dat_recap_new)),
+             pch = 18) +
+  scale_color_gradient2(low ="darkgreen", mid = "yellow", high = "red", name = "Julian\nRecapture",
+                        limits = c(180,300),
+                        midpoint = (300+180)/2,
+                        na.value = "red",
+                        guide = guide_colorbar(barheight = 20, ticks.colour = "grey20"),
+                        breaks = seq(180,300,20),
+                        minor_breaks = seq(180,300,10)) +
+  #scale_size_continuous(range = c(0.3, 0.6)) +
+  scale_x_continuous(expand =c(0,0))+scale_y_continuous(expand = c(0,0))+
+  guides(size = guide_legend(override.aes = list(shape = 19)))+
+  #geom_text(data=data.frame(x=-Inf,y=60,label="N-recapture = "), aes(x=x, y=y, label=label), col="black",
+  #          fontface="bold") +
+  #geom_text(data=data.frame(x=-26,y=54,label="Nsamp release:"), aes(x=x, y=y, label=label), col="black",
+  #          fontface="bold") +
+  geom_text(data =weights, aes(x = xpos, y = ypos, label = paste0("Biomass scanned: ", round(biomass,1), " kt")),
+            vjust = 1.2, hjust = -.75, fontface = "bold", col = "black")+
+  geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA, lty  =2) +
+  facet_wrap(~Release_year, ncol = 2)+
+  geom_text(data=ncount_release, aes(x=-Inf, y=63-4, label=label), hjust=-.05)+
+  geom_text(data=ncount_recap, aes(x=-Inf, y=61-4, label=label), hjust=-.05) + labs(x="Longitude", y="Latitude") +
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5),
+                     legend.title = element_text(face = "bold", size = 12),
+                     strip.background = element_rect(fill = "white"),
+                     strip.text = element_text(face ="bold", size = 14))
+                     #panel.spacing.x = unit(6.5, "mm"))+
+ggsave(g1, filename = "plots/Arils_samlede_figur_early.tiff",
+       width=28, height=32, units="cm", device = "tiff", dpi = "retina")
+
+# ------------------------------------------
+# ---- Arils supplementary figure ----------
+# ------------------------------------------
+dat_release <- Data_mackerel_all %>% subset(Tag_area %in% c("South_Ireland", "North_Ireland"))
+dat_release$julian <-  sapply(1:nrow(dat_release), function(k) as.numeric(julian(dat_release$relesedate[k],
+                                                                                 as.POSIXct(paste0(dat_release$Release_year[k], "-01-01"), tz = "GMT"))))
+dat_release$Tag_area <- as.character(dat_release$Tag_area)
+dat_release$Tag_area <- as.factor(dat_release$Tag_area)
+dat_release$Tag_area <- factor(dat_release$Tag_area, labels=c("From N. Ireland", "From S. Ireland"))
+
+
+ncount_release <- filter(dat_release, Release_year %in% years) %>% group_by(Release_year, Tag_area, Release_timing) %>% count() %>%
+  mutate(latitudes = ifelse(Tag_area == "From N. Ireland", ">54°N", "<54°N"),
+         timing = ifelse(Release_timing == "First_half", "<141", ">= 141"))
+ncount_release$lon = -Inf
+ncount_release$lat = ifelse(ncount_release$Tag_area == "From N. Ireland" & ncount_release$timing == "<141", 62,
+                            ifelse(ncount_release$Tag_area != "From N. Ireland" & ncount_release$timing == "<141",61,
+                                   ifelse(ncount_release$Tag_area == "From N. Ireland" & ncount_release$timing != "<141",60,
+                                          59)))
+ncount_release <- add_column(ncount_release,
+                             label =  paste0("N-released lat", ncount_release$latitudes, ", julian day",
+                                             ncount_release$timing, "= ", ncount_release$n))
+
+
+ncount_release <- filter(dat_release, Release_year %in% years) %>%
+  group_by(Release_year, Release_timing) %>% count() %>%
+  mutate(timing = ifelse(Release_timing == "First_half", "<141", ">=141"))
+ncount_release_julian$Release_timing = NULL
+ncount_release_julian <- spread(ncount_release_julian, timing, n)
+ncount_release_julian$label  <-NA
+for(i in 1:nrow(ncount_release_julian)){
+  ncount_release_julian$label[i] <- paste0("N-released julian day  <141 = ", ncount_release_julian[i,'<141'],
+                                  "\nN-released julian day >=141 = ", ncount_release_julian[i,'>=141'])
+}
+ncount_release_julian$lon <- -Inf
+ncount_release_julian$lat <- 60
+
+ncount_release_NS <- filter(dat_release, Release_year %in% years) %>%
+  group_by(Release_year, Tag_area) %>% count() %>%
+  mutate(latitudes = ifelse(Tag_area == "From N. Ireland", ">54°N", "<54°N"))
+ncount_release_NS$Tag_area = NULL
+ncount_release_NS <- spread(ncount_release_NS, latitudes, n)
+ncount_release_NS$label  <-NA
+for(i in 1:nrow(ncount_release_NS))
+ncount_release_NS$label  <- paste0("N-released lat >54°N = ", ncount_release_NS[i,'>54°N'],
+                                   "\nN-released lat>=54°N = ", ncount_release_NS[i,'<54°N'])
+ncount_release_NS$lon <- -Inf
+ncount_release_NS$lat <- 58
+
+
+
+
+dat_recap <- Data_mackerel_final
+dat_recap$Release_year <- as.integer(as.character(dat_recap$Release_year))
+dat_recap <- dat_recap %>% subset(Catch_year==Release_year+lag &
+                                    Tag_area %in% c("South_Ireland", "North_Ireland"))
+dat_recap$julian_release_per_year <-  sapply(1:nrow(dat_recap), function(k) as.numeric(julian(dat_recap$relesedate[k], as.POSIXct(paste0(dat_recap$Release_year[k], "-01-01"), tz = "GMT"))))
+dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
+dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
+
+dat_release <- filter(dat_release, Release_year %in% years)
+dat_recap <- filter(dat_recap, Release_year %in% years)
+
+dat_recap_new <- as_tibble(dat_recap)%>% dplyr::select(cLon, cLat, julian_release_per_year, Release_year,Tag_area) #%>%
+  #group_by(Release_year,Tag_area) # %>%count(round(cLon,1), round(cLat,1), round(julian_release_per_year,0)) %>%
+dat_recap_new$Tag_area <-   mapvalues(dat_recap_new$Tag_area, from  = c("South_Ireland", "North_Ireland"),
+                  to = c("South Ireland", "North Ireland"))
+#colnames(dat_recap_new) <- c("Release_year", "Tag_area",  "julian_release")#, "n")
+
+Norway <- st_read("shapefile/ne_10m_land.shp")
+Norway <- st_crop(Norway, c(xmin = min(dat_recap_new$cLon)-1,
+                            ymin = min(dat_recap_new$cLat)-1,
+                            xmax = max(dat_recap_new$cLon)+3,
+                            ymax = max(dat_recap_new$cLat)+1))
+range(dat_recap_new$cLon)
+set.seed(13112020)
+
+dat_recap_new <- left_join(dat_recap_new, dat_recap_new %>% group_by(cLon,cLat, Release_year) %>% count(), by = c("cLon","cLat", "Release_year"))
+dat_recap_new$width <- dat_recap_new$height <- ifelse(dat_recap_new$n == 1, 0,
+                                                      ifelse(dat_recap_new$n < 10, .3,
+                                                             ifelse(dat_recap_new$n <20, .4, .5)))
+
+dat_recap_new$cLonjit <- jitter(dat_recap_new$cLon, amount = resolution(dat_recap_new$cLon, zero = FALSE) * dat_recap_new$width)
+dat_recap_new$cLatjit <- jitter(dat_recap_new$cLat, amount = resolution(dat_recap_new$cLat, zero = FALSE) * dat_recap_new$height)
+dat_recap_new$Tag_area <- factor(dat_recap_new$Tag_area, labels=c(">=54°N", "<54°N"))
+g2 <- ggplot(Norway) + geom_sf() +
+  geom_point(data=dat_recap_new %>% arrange((julian_release_per_year)), aes(x = cLonjit, y = cLatjit, col = julian_release_per_year,
+                                     shape = Tag_area),
+             size = 2.5)+
+             #position = "jitter",
+             #width = 0.3,
+             #height =0.3) +
+
+  #geom_text(data = ncount_release_julian, aes(x = lon, y = lat-.4, label = label),
+  #          hjust = 0)+
+ # geom_text(data = ncount_release_NS, aes(x = lon, y = lat, label = label),
+  #          hjust = 0)+
+  geom_text(data = data.frame(x = c(-20,2,2),
+                              y = c(67.5, 67.5, 58),
+                              lab = c("Norwegian Sea\nWest",
+                                      "Norwegian Sea\nEast",
+                                      "North Sea"),
+                              Release_year = rep(2014,3)),
+            aes(x=x, y =y, label = lab), color = "blue",
+            size = 5) +
+  facet_wrap(~Release_year, ncol = 2)+
+    scale_color_viridis_c(name = "Julian day\nof release", breaks = c(seq(120,160,5),141)) +
+    scale_x_continuous(expand = c(0,0), name = "Longitude") +
+    scale_y_continuous(expand = c(0,0), name = "Latitude") +
+  scale_shape_discrete(name = "Tagging area", solid = TRUE) +
+    guides(color = guide_colorbar(barheight = 35)) +
+  geom_hline(aes(yintercept = 62), lty = 2, col = "blue")+
+  geom_vline(aes(xintercept = -5), lty = 2, col = "blue")+
+  theme_bw()+
+  theme(strip.text = element_text(size = 14, face = "bold"),
+        strip.background = element_rect(fill = "white"),
+        legend.title = element_text(face = "bold", size = 12))
+
+#g2
+ggsave(g2, filename = "plots/Arils_supplementary_figure_jitter_without_text.tiff",
+       width=28, height=30, units="cm", device = "tiff", dpi = "retina")
+
+
+# ---------------------------------------------------------------------------------
+# Same figure but make recaptures based on releases split into 5 body length bins,
+# 5 different size of symbols, biggest for biggest length bin, and make sure biggest
+# always are on bottom smallest on top at each position (jittering not necessary) to
+# demonstrate if the length bin was recaptured in that position or not
+
+
+quantile(dat_recap$length,seq(.2,.8,.2))
+table(cut_number(dat_recap$length, n = 5))
+table(cut(dat_recap$length, breaks = c(-Inf,33,35,37,39, Inf)))
+# Update length bin figure with 33 and smaller, 34-35, 36-37, 38-39, 40 and bigger
+dat_recap$length_cat <- cut(dat_recap$length, breaks = c(min(dat_recap$length),33,35,37,39, max(dat_recap$length)),
+                            include.lowest = T)
+dat_recap$length_int <- as.integer(dat_recap$length_cat)
+dat_recap$Tag_area <-   plyr::mapvalues(dat_recap$Tag_area, from  = c("South_Ireland", "North_Ireland"),
+                                      to = c("<54°N", ">54°N"))
+
+g3 <- ggplot(Norway) + geom_sf() +
+  geom_point(data=dat_recap%>% arrange(julian_release_per_year, length_cat),
+             aes(x = cLon, y = cLat, fill = julian_release_per_year,
+                 #shape = Tag_area,
+                 size = length_cat),
+             pch = 21)+
+  #position = "jitter",
+  #width = 0.3,
+  #height =0.3) +
+
+  # geom_text(data = ncount_release_julian, aes(x = lon, y = lat-.4, label = label),
+  #           hjust = 0)+
+  # geom_text(data = ncount_release_NS, aes(x = lon, y = lat, label = label),
+  #           hjust = 0)+
+  facet_wrap(~Release_year, ncol = 2)+
+  scale_fill_viridis_c(name = "Julian day\nof release", breaks = c(seq(120,160,5))) +
+  scale_x_continuous(expand = c(0,0), name = "Longitude") +
+  scale_y_continuous(expand = c(0,0), name = "Latitude") +
+  scale_size_discrete(name = "Length bin")+
+  #scale_shape_discrete(solid = FALSE) +
+  scale_shape_discrete(name = "Released", solid = TRUE) +
+  guides(fill = guide_colorbar(barheight = 35)) +
+  theme_bw()+
+  theme(strip.text = element_text(size = 14, face = "bold"),
+        strip.background = element_rect(fill = "white"),
+        legend.title = element_text(face = "bold", size = 12))
+ggsave(g3, filename = "plots/Arils_supplementary_figure_length_bins.tiff",
+       width=28, height=30, units="cm", device = "tiff", dpi = "retina")
+
+dat_release$length_cat <- cut(dat_release$length, breaks = c(min(dat_release$length),33,35,37,39, max(dat_release$length)),
+                              include.lowest =T)
+ggplot(dat_release %>%
+         mutate(Tag_area = ifelse(Tag_area == "From N. Ireland", ">54°N", "<54°N")), aes(x=factor(length))) + geom_bar(aes(fill = Tag_area)) +
+  facet_wrap(~Release_year, ncol = 1, strip.position = "right")+
+  theme_bw() +
+  scale_fill_discrete(name = "Tagging area") +
+  xlab ("Length") + ylab("Frequency")+
+  theme(strip.background = element_rect(fill = "white"),
+        strip.text = element_text(size = 14, face = "bold"),
+        legend.position = "top",
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(face = "bold", size = 12))#+ scale_y_continuous(expand = c(0,0))
+  #stat_density(alpha = 0.1, fill = "red", col = "red")
+ggsave("plots/length_cat_distribution_releases.tiff",
+       width=25, height=30, units="cm", device = "tiff", dpi = "retina")
+
+# -- multipanel figure
+# Upper left: numbers released per year stacked with different colors for numbers north-south, upper right same but stacked with different colours for the before and after 22May
+# Mid left: numbers recaptured per year and area (3 columns per year) stacked with different colors for numbers north-south, mid right same but stacked with different colours for the before and after 22May
+# Bottom left: rate (numbers recaptured/released) per year and area stacked with different colors for rate releasaed north-south, bottom right same but stacked with different colours for the before and after 22May
+# -----------------
+
+dat_release <- dat_release %>% mutate(recaptureArea =
+                                        ifelse(cLat <= 62, "NS",
+                                               ifelse(cLon>5, "E", "W")))
+
+ncount_release <- filter(dat_release, Release_year %in% years) %>%
+  group_by(Release_year, Tag_area, Release_timing,recaptureArea) %>% count() %>%
+  mutate(latitudes = ifelse(Tag_area == "From N. Ireland", ">=54°N", "<54°N"),
+         timing = ifelse(Release_timing == "First_half", "<141", ">= 141"))
+ncount_release$lon = -Inf
+ncount_release$lat = ifelse(ncount_release$Tag_area == "From N. Ireland" & ncount_release$timing == "<141", 62,
+                            ifelse(ncount_release$Tag_area != "From N. Ireland" & ncount_release$timing == "<141",61,
+                                   ifelse(ncount_release$Tag_area == "From N. Ireland" & ncount_release$timing != "<141",60,
+                                          59)))
+ncount_release <- add_column(ncount_release,
+                             label =  paste0("N-released lat", ncount_release$latitudes, ", julian day",
+                                             ncount_release$timing, "= ", ncount_release$n))
+# -------------------------------------------------
+# --------------- Figure top left :  --------------
+# - Numbers released per before and after May 22 --
+# -------------------------------------------------
+ncount_release_julian <- filter(dat_release, Release_year %in% years) %>%
+  dplyr::select(Release_year, Release_timing) %>%
+  group_by(Release_year, Release_timing) %>% count() %>%
+  mutate(timing = ifelse(Release_timing == "First_half", "<141", ">=141")) %>%
+  dplyr::select(-Release_timing) %>% rename(freq = n)
+
+ncount_release_julian$totFreq <- NA
+for(i in unique(ncount_release_julian$Release_year)){
+  ncount_release_julian$totFreq[ncount_release_julian$Release_year == i &
+                                  ncount_release_julian$timing == '>=141'] <- ncount_release_julian$freq[ncount_release_julian$Release_year == i &
+
+                                                                                                          ncount_release_julian$timing == '<141'] +
+    ncount_release_julian$freq[ncount_release_julian$Release_year == i &
+
+                                 ncount_release_julian$timing == '>=141']/2
+  ncount_release_julian$totFreq[ncount_release_julian$Release_year == i &
+                                  ncount_release_julian$timing == '<141'] <- ncount_release_julian$freq[ncount_release_julian$Release_year == i &
+                                                                                                              ncount_release_julian$timing == '<141'] /2
+}
+
+# turning the order:
+ncount_release_julian$timing <- factor(ncount_release_julian$timing, levels = c(">=141" = ">=141", "<141"="<141"))
+
+(p1 <- ggplot(ncount_release_julian, aes(x = Release_year, fill = timing, y = freq)) +
+    geom_bar(position="stack", stat="identity", width = .99) +
+    geom_text(aes(label=freq, y = totFreq))+
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.position = "top",
+          axis.text.y = element_text(angle = 90, hjust = .5),
+          axis.text = element_text(size = 11),
+          #strip.text = element_text(size = 14),
+          axis.title = element_text(size = 14, face = "bold"),
+          legend.title = element_text(face = "bold", size = 14),
+          legend.text = element_text(size =14),
+          axis.text.x = element_blank(),
+          axis.title.x = element_blank())+
+    scale_x_discrete(expand = c(0,0), name = "Release year")+
+    scale_y_continuous(expand = c(0,500), "Number of released fish") +
+    scale_fill_discrete("Julian day of release"))
+
+# -------------------------------------------------
+# --------------- Figure top right :  -------------
+# - Numbers released per north or south of 54N ----
+# -------------------------------------------------
+
+ncount_release_NS <- filter(dat_release, Release_year %in% years) %>%
+  dplyr::select(Release_year, Tag_area) %>%
+  group_by(Release_year, Tag_area) %>% count() %>%
+  mutate(timing = ifelse(Tag_area == "From N. Ireland", ">=54°N", "<54°N")) %>%
+  dplyr::select(-Tag_area) %>% rename(freq = n) %>% mutate(freq = freq)
+
+ncount_release_NS$totFreq <- NA
+for(i in unique(ncount_release_NS$Release_year)){
+  ncount_release_NS$totFreq[ncount_release_NS$Release_year == i &
+                                  ncount_release_NS$timing != "<54°N"] <- ncount_release_NS$freq[ncount_release_NS$Release_year == i &
+
+                                                                                                          ncount_release_NS$timing == "<54°N"] +
+    ncount_release_NS$freq[ncount_release_NS$Release_year == i &
+
+                                 ncount_release_NS$timing != "<54°N"]/2
+  ncount_release_NS$totFreq[ncount_release_NS$Release_year == i &
+                                  ncount_release_NS$timing == "<54°N"] <- ncount_release_NS$freq[ncount_release_NS$Release_year == i &
+                                                                                                           ncount_release_NS$timing == "<54°N"] /2
+}
+ncount_release_NS <- ncount_release_NS %>% mutate(Tag_area = timing, timing = NULL)
+ncount_release_NS$Tag_area <- factor(ncount_release_NS$Tag_area,
+                                     levels = c(">=54°N" = ">=54°N", "<54°N"="<54°N"))
+
+(p2 <- ggplot(ncount_release_NS, aes(x = Release_year, fill = Tag_area, y = freq)) +
+    geom_bar(position="stack", stat="identity", width = .99) +
+    geom_text(aes(label=freq, y = totFreq))+
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.position = "top",
+          legend.title = element_text(face = "bold", size = 14),
+          legend.text = element_text(size =14),
+          axis.text.y = element_blank(),
+          axis.title.y = element_blank(),
+          axis.text.x = element_blank(),
+          axis.title.x = element_blank())+
+    scale_x_discrete(expand = c(0,0), name = "Release year")+
+    scale_y_continuous(expand = c(0,500), "Number of released fish") +
+    scale_fill_discrete("Tagging area"))
+
+# --------------------------------------------------
+# --------------- Figure mid left :  ---------------
+# - Numbers recaptured per before and after May 22 -
+# --------------------------------------------------
+dat_recap<- dat_recap %>% mutate(recaptureArea =
+                                        ifelse(cLon < -5 & cLat >= 62, "W",
+                                               ifelse(cLon>=-5 & cLat >= 62, "E",
+                                                      ifelse(cLon >=-5 & cLat < 62, "NS", "Other"))))
+ncount_recap_julian <- filter(dat_recap, Release_year %in% years) %>%
+  dplyr::select(Release_year, Release_timing, recaptureArea) %>%
+  group_by(Release_year, Release_timing,recaptureArea) %>% count() %>%
+  mutate(timing = ifelse(Release_timing == "First_half", "<141", ">=141")) %>%
+  dplyr::select(-Release_timing) %>% rename(freq = n)
+ncount_recap_julian$Release_timing <- NULL
+ncount_recap_julian <-ncount_recap_julian %>% group_by(Release_year, recaptureArea) %>%
+  mutate(relFreq = freq/sum(freq), totFreqRecap = sum(freq))
+
+
+  ncount_recap_julian$yeararea = factor(str_replace(as.character(interaction(ncount_recap_julian$Release_year,
+                                                              ncount_recap_julian$recaptureArea)),
+                                     '\\.', ' / '), ordered=TRUE)
+
+(p3 <- ggplot(ncount_recap_julian, aes(x =yeararea, fill = timing, y = freq)) +
+    geom_bar(position="stack", stat="identity") +
+    #geom_text(aes(label=freq, y = totFreq))+
+    #facet_wrap( ~ Release_year, strip.position = "bottom", scales = "free_x", nrow = 1) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.title = element_text(face = "bold"),
+          #panel.margin = grid::unit(-1.25, "lines"),
+          #strip.placement = "outside",
+          #strip.background = element_rect(fill = "white", color = "white"),
+          axis.text.x = element_text(angle = 90),
+          strip.text = element_blank())+
+    scale_x_discrete(expand = c(0,0), name = "Release year/area of recapture")+
+    scale_y_continuous(expand = c(0,2), "Number of recaptured fish") +
+    scale_fill_discrete("Julian\nRelease"))
+
+  ncount_recap_julian <- transform(ncount_recap_julian, recaptureArea = factor(recaptureArea, levels = c("W","E","NS")),
+                                   timing = factor(timing, levels = c(">=141","<141")))
+
+(p3 <- ggplot(ncount_recap_julian, aes(x = recaptureArea, fill = timing, y = freq)) +
+    geom_bar(position="stack", stat="identity") +
+    #geom_text(aes(label=freq, y = totFreq))+
+    facet_wrap( ~ Release_year, strip.position = "bottom", scales = "free_x", nrow = 1) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.title = element_text(face = "bold"),
+          panel.margin = grid::unit(0, "lines"),
+          strip.placement = "outside",
+          legend.position = "none",
+          #axis.text = element_text(size = 12),
+          #strip.text = element_text(size = 14),
+          axis.title = element_text(size = 14, face = "bold"),
+          axis.text.y = element_text(angle = 90, hjust = .5, size = 11),
+          strip.background = element_rect(fill = "white", color = "white"),
+          #axis.text.x = element_text(angle = 0),
+          axis.text.x = element_blank(),
+          axis.title.x = element_blank(),
+          strip.text = element_blank()
+          )+
+    scale_x_discrete(expand = c(.2,.2), name = "Release year")+
+    scale_y_continuous(expand = c(0,0), "Number of recaptured fish", breaks = seq(0,200,25)) +
+    scale_fill_discrete("Julian\n release"))
+# --------------------
+
+# --------------------------------------------------
+# --------------- Figure mid left :  ---------------
+# - Numbers recaptured per before and after May 22 -
+# --------------------------------------------------
+
+  levels(dat_recap$Tag_area ) <- c(">=54°N","<54°N")
+ncount_recap_NS <- filter(dat_recap, Release_year %in% years) %>%
+  dplyr::select(Release_year, Tag_area, recaptureArea) %>%
+  group_by(Release_year, Tag_area,recaptureArea) %>% count()  %>% rename(freq = n)#%>%
+
+  ncount_recap_NS <- ncount_recap_NS %>%  group_by(Release_year, recaptureArea) %>%
+    mutate(relFreq = freq/sum(freq), totFreqRecap = sum(freq))
+
+
+
+  #mutate(timing = ifelse(Tag_area ==  "From N. Ireland", ">54°N", "<54°N")) %>%
+  #dplyr::select(-Tag_area)
+
+# ncount_recap_NS$totFreq <- NA
+# for(i in unique(ncount_recap_NS$Release_year)){
+#   ncount_recap_NS$totFreq[ncount_recap_NS$Release_year == i &
+#                                 ncount_recap_NS$timing == '<141'] <- ncount_recap_NS$freq[ncount_recap_NS$Release_year == i &
+#
+#                                                                                                     ncount_recap_NS$timing == '>=141'] +
+#     ncount_recap_NS$freq[ncount_recap_NS$Release_year == i &
+#
+#                                ncount_recap_NS$timing == '<141']/2
+#   ncount_recap_NS$totFreq[ncount_recap_NS$Release_year == i &
+#                                 ncount_recap_NS$timing == '>=141'] <- ncount_recap_NS$freq[ncount_recap_NS$Release_year == i &
+#                                                                                                      ncount_recap_NS$timing == '>=141'] /2
+# }
+
+ncount_recap_NS$yeararea <- factor(str_replace(interaction(ncount_recap_NS$Release_year,
+                                                           ncount_recap_NS$recaptureArea),
+                                                           '\\.', ' / '), ordered=TRUE)
+ncount_recap_NS <- transform(ncount_recap_NS,
+                             recaptureArea = factor(recaptureArea, levels = c("W","E","NS")),
+                             Tag_area = factor(Tag_area, levels = c(">=54°N","<54°N")))
+
+(p4 <- ggplot(ncount_recap_NS, aes(x =yeararea, fill = Tag_area, y = freq)) +
+    geom_bar(position="stack", stat="identity") +
+    #geom_text(aes(label=freq, y = totFreq))+
+    #facet_wrap( ~ Release_year, strip.position = "bottom", scales = "free_x", nrow = 1) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.title = element_text(face = "bold"),
+          #panel.margin = grid::unit(-1.25, "lines"),
+          #strip.placement = "outside",
+          #strip.background = element_rect(fill = "white", color = "white"),
+          axis.text.x = element_text(angle = 90),
+          strip.text = element_blank())+
+    scale_x_discrete(expand = c(0,0), name = "Release year/area of recapture")+
+    scale_y_continuous(expand = c(0,2), "Number of recaptured fish") +
+    scale_fill_discrete("Latitude\nRelease"))
+(p4 <- ggplot(ncount_recap_NS, aes(x = recaptureArea, fill = Tag_area, y = freq)) +
+    geom_bar(position="stack", stat="identity") +
+    #geom_text(aes(label=freq, y = totFreq))+
+    facet_wrap( ~ Release_year, strip.position = "bottom", scales = "free_x", nrow = 1) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.title = element_text(face = "bold"),
+          panel.margin = grid::unit(0, "lines"),
+          strip.placement = "outside",
+          legend.position = "none",
+          axis.text.x = element_blank(),
+          axis.title.x = element_blank(),
+          axis.title.y = element_blank(),
+          strip.text = element_blank(),
+          axis.text.y = element_blank(),#element_text(angle = 90, hjust = .5),
+          strip.background = element_rect(fill = "white", color = "white"))+
+    scale_x_discrete(expand = c(.2,.2), name = "Release year")+
+    scale_y_continuous(expand = c(0,0), "Number of recaptured fish", breaks = seq(0,200,25)) +
+    scale_fill_discrete("Julian\n release"))
+# --------------------------
+
+rates_julian <- full_join(ncount_recap_julian %>% rename(freq.recap = freq),
+                      ncount_release_julian %>% rename(freq.release = freq) %>%
+                        mutate(Release_year = as.integer(as.character(Release_year))),
+                      by = c("Release_year", "timing")) %>%
+  mutate(rate = freq.recap/freq.release)
+rates_julian <- rates_julian %>% group_by(Release_year, recaptureArea) %>% mutate(srate = rate/sum(rate))
+names(ncount_recap_julian)
+names(ncount_release_julian)
+rates_julian <- transform(rates_julian, recaptureArea = factor(recaptureArea, levels = c("W", "E","NS")),
+                          timing = factor(timing, levels = c(">=141","<141")))
+(p5 <- ggplot(rates_julian, aes(x = recaptureArea, fill = timing, y = srate)) +
+    geom_bar(position="stack", stat="identity") +
+    #geom_text(aes(label=freq, y = totFreq))+
+    facet_wrap( ~ Release_year, strip.position = "bottom", scales = "free_x", nrow = 1) +
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          legend.title = element_text(face = "bold"),
+          panel.margin = grid::unit(0, "lines"),
+          strip.placement = "outside",
+          #axis.text.x = element_text(size = 12),
+          #axis.text.y = element_text(size = 11),
+          strip.text = element_text(size = 14),
+          axis.title = element_text(size = 14, face = "bold"),
+          legend.position = "none",
+          axis.text.y = element_text(angle = 90, hjust = .6, size = 11),
+          strip.background = element_rect(fill = "white", color = "white"),
+          axis.text.x = element_text(angle = 0, size = 12))+
+    geom_hline(yintercept = 0.5, lty = 2, lwd = .7)+
+    scale_x_discrete(expand = c(.2,.2), name = "Release year",
+    )+
+    scale_y_continuous(expand = c(0,0.0002), "Recapture rate (% of total rate)",
+                       label = scales::percent) +
+    scale_fill_discrete("Tagging area"))
+#-----
+rates_NS <- full_join(ncount_recap_NS %>% rename(freq.recap = freq),
+                      ncount_release_NS %>% rename(freq.release = freq) %>%
+                        mutate(Release_year = as.integer(as.character(Release_year)),
+                               totFreq = NULL),
+                      by = c("Release_year", "Tag_area")) %>%
+  mutate(rate = freq.recap/freq.release)
+rates_NS <- rates_NS %>% group_by(Release_year, recaptureArea) %>% mutate(srate = rate/sum(rate))
+
+names(ncount_recap_NS)
+names(ncount_release_NS)
+rates_NS <- transform(rates_NS, recaptureArea = factor(recaptureArea, levels = c("W","E","NS")),
+                      Tag_area = factor(Tag_area, levels = c(">=54°N","<54°N")))
+(p6 <- ggplot(rates_NS, aes(x = recaptureArea, fill = Tag_area, y = srate)) +
+    geom_bar(position="stack", stat="identity") +
+    #geom_text(aes(label=freq, y = totFreq))+
+    facet_wrap( ~ Release_year, strip.position = "bottom", scales = "free_x", nrow = 1) +
+    scale_x_discrete(expand = c(.2,.2), name = "Release year",
+    )+
+    scale_y_continuous(expand = c(0,0.0002), "Relative recapture rate (%)",
+                       label = scales::percent) +
+    scale_fill_discrete("Julian\n release")+
+    theme_bw() +
+    theme(panel.grid = element_blank(),
+          #legend.title = element_text(face = "bold"),
+          panel.margin = grid::unit(0, "lines"),
+          strip.placement = "outside",
+          legend.position = "none",
+          axis.text = element_text(size = 12),
+          strip.text = element_text(size = 14),
+          axis.title = element_text(size = 14, face = "bold"),
+          axis.text.y = element_blank(),
+          axis.title.y = element_blank(),
+          #axis.text.y = element_text(angle = 90, hjust = .5),
+          strip.background = element_rect(fill = "white", color = "white"),
+          axis.text.x = element_text(angle = 0))+
+geom_hline(yintercept = 0.5, lty = 2, lwd = .7)
+)
+# -----------------
+# Combination !
+# ---------------
+
+library(ggpubr)
+g4 <- ggarrange(p1,p2,p3,p4, p5,p6, ncol = 2, nrow = 3)
+ggsave(g4, filename = "plots/Arils_supplementary_multipanel_figure_relative_2.tiff",
+       width=35, height=30, units="cm", device = "tiff", dpi = "retina")
