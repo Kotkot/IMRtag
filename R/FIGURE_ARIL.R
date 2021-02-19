@@ -5,6 +5,49 @@
 #  The Figure 1 is created from here to ~ line 115
 # ----------------------------------
 
+library(ncdf4) # package for netcdf manipulation
+library(raster) # package for raster manipulation
+library(rgdal) # package for geospatial analysis
+library(ggplot2) # package for plotting
+library(tidyverse)
+
+
+nc_data <- nc_open("C:/Users/a23092/Documents/Projects/Pelagic/IMRtag/data/current.nc")
+
+print(nc_data)
+lon <- ncvar_get(nc_data, "longitude")
+length(lon)
+lat <- ncvar_get(nc_data, "latitude")
+length(lat)
+time <- ncvar_get(nc_data, "time")
+uo <- ncvar_get(nc_data, "uo")
+dim(uo)
+
+vo <- ncvar_get(nc_data, "vo")
+dim(vo)
+
+vo_df <- reshape2::melt(vo, varnames = c("lon", "lat", "time"), value.name = "NS_comp")
+vo_df$lon <- as.vector(lon)[match(vo_df$lon, unique(vo_df$lon))]
+vo_df$lat <- as.vector(lat)[match(vo_df$lat, unique(vo_df$lat))]
+vo_df$time <- as.vector(time)[match(vo_df$time, unique(vo_df$time))]
+uo_df <- reshape2::melt(uo, varnames = c("lon", "lat", "time"), value.name = "EW_comp")
+uo_df$lon <- as.vector(lon)[match(uo_df$lon, unique(uo_df$lon))]
+uo_df$lat <- as.vector(lat)[match(uo_df$lat, unique(uo_df$lat))]
+uo_df$time <- as.vector(time)[match(uo_df$time, unique(uo_df$time))]
+
+Dat <- vo_df
+Dat$EW_comp <- uo_df$EW_comp
+Dat$date <- as.POSIXct(Dat$time*3600, origin='1950-01-01 00:00:00', tz="GMT", format = "%Y-%m-%d")
+Dat$speed <- sqrt(Dat$EW_comp^2 + Dat$NS_comp^2)
+
+ggplot(Dat, aes(x=speed)) + geom_histogram()
+
+
+Current_data <- Dat %>% filter(time %in% c(565008, 573768, 582552, 591312, 600072, 608832))
+Current_data$Release_year <- (2014:2019)[match(Current_data$time, c(565008, 573768, 582552, 591312, 600072, 608832))]
+Current_data <- Current_data %>% filter(lat>51, lon<15, lat<68.5)
+
+
 lag = 0
 years <- 2014:2019
 library(lubridate)
@@ -77,10 +120,13 @@ g1 <- ggplot(Norway) + geom_sf() +
   #geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat)) +
   scale_color_viridis_c(limits = c(120, 160), name = "Julian\nRelease",
                         breaks = seq(120,160,5),
-                        guide = guide_colorbar(barheight = 20, ticks.colour = "grey20")) +
+                        guide = guide_colorbar(barheight = 15, ticks.colour = "grey20")) +
   #guides(color = guide_colorbar(barheight = 15))+
   scale_size_continuous(breaks=c(1,10,100,1000,5000),range = c(1, 6), name = "#Releases") +
-
+  new_scale_color() +
+  geom_segment(data = Current_data %>% filter(speed > 0.1), aes(x=lon, y=lat, xend = lon + EW_comp*5, yend = lat + NS_comp*5, col=speed),
+               arrow = arrow(angle = 15, length = unit(0.03, "inches"), type = "closed"), alpha = 0.8, size=0.3) +
+  scale_color_gradient(low="lightblue1", high="darkblue",  name = "Current\nspeed (m/s)") +
   new_scale_color() +
   geom_point(data=dat_recap_new %>% arrange(desc(julian_recapture)),
              aes(x=cLon, y=cLat, col = julian_recapture),
@@ -91,7 +137,7 @@ g1 <- ggplot(Norway) + geom_sf() +
                         limits = c(180,300),
                         midpoint = (300+180)/2,
                         na.value = "red",
-                        guide = guide_colorbar(barheight = 20, ticks.colour = "grey20"),
+                        guide = guide_colorbar(barheight = 15, ticks.colour = "grey20"),
                         breaks = seq(180,300,20),
                         minor_breaks = seq(180,300,10)) +
   #scale_size_continuous(range = c(0.3, 0.6)) +
@@ -105,15 +151,15 @@ g1 <- ggplot(Norway) + geom_sf() +
             vjust = 1.2, hjust = -.75, fontface = "bold", col = "black")+
   geom_polygon(data = hull_catch, alpha = 0.5, aes(x=cLon, y=cLat), col="black", fill=NA, lty  =2) +
   facet_wrap(~Release_year, ncol = 2)+
-  geom_text(data=ncount_release, aes(x=-Inf, y=63-4, label=label), hjust=-.05)+
-  geom_text(data=ncount_recap, aes(x=-Inf, y=61-4, label=label), hjust=-.05) + labs(x="Longitude", y="Latitude") +
+  geom_text(data=ncount_release, aes(x=5, y=52.5, label=label), hjust=-.05, size=3)+
+  geom_text(data=ncount_recap, aes(x=5, y=51, label=label), hjust=-.05, size=3) + labs(x="Longitude", y="Latitude") +
   theme_bw() + theme(plot.title = element_text(hjust = 0.5),
                      legend.title = element_text(face = "bold", size = 12),
                      strip.background = element_rect(fill = "white"),
                      strip.text = element_text(face ="bold", size = 14))
                      #panel.spacing.x = unit(6.5, "mm"))+
-ggsave(g1, filename = "plots/Arils_samlede_figur_early.tiff",
-       width=28, height=32, units="cm", device = "tiff", dpi = "retina")
+ggsave(g1, filename = "wd/figs/Fi1_new.pdf",
+       width=28, height=32, units="cm", dpi = 450)
 
 # ------------------------------------------
 # ---- Arils supplementary figure ----------
