@@ -12,7 +12,7 @@ library(ggplot2) # package for plotting
 library(tidyverse)
 
 
-nc_data <- nc_open("C:/Users/a23092/Documents/Projects/Pelagic/IMRtag/data/current.nc")
+nc_data <- nc_open("data/current.nc")
 
 print(nc_data)
 lon <- ncvar_get(nc_data, "longitude")
