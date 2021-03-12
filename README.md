@@ -12,7 +12,7 @@ Aril Slotte<sup>1</sup>,….*
 
 *Correspondance to: <kotaro.uno@hi.no>*
 
-*Nature paper can be found [here](https://www.hi.no).*
+*Paper can be found [here](https://www.hi.no) (real link to come).*
 
 This repository contains the necessary code for reproducing results from
 the paper *First-year distribution and movement rates of PIT-tagged
@@ -44,7 +44,7 @@ information (Northward and Eastward sea water velocity), from
 1.  Ono, Kotaro, Sondre Hølleland, Aril Slotte, …, 2021, *First-year
     distribution and movement rates of PIT-tagged North East Atlantic
     mackerel (Scomber Scombrus) varies with timing, location, and fish
-    size at release during the spawning season*, Nature, 1-13.
+    size at release during the spawning season*, Working paper.
 2.  Slotte, Aril … , 2021,…..
 
 ## Authors’ github accounts

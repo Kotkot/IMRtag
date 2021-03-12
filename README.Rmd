@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
   *Correspondance to: kotaro.uno@hi.no*
  
- *Nature paper can be found [here](https://www.hi.no).*
+ *Paper can be found [here](https://www.hi.no) (real link to come).*
 
 This repository contains the necessary code for reproducing results from the paper *First-year distribution and movement rates of PIT-tagged North East Atlantic mackerel (Scomber Scombrus) varies with timing, location, and fish size at release during the spawning season*. 
 
@@ -36,7 +36,7 @@ The current data in *Data/current.nc* is average monthly surface current informa
 
 ## References
 
-1. Ono, Kotaro, Sondre Hølleland, Aril Slotte, ..., 2021, *First-year distribution and movement rates of PIT-tagged North East Atlantic mackerel (Scomber Scombrus) varies with timing, location, and fish size at release during the spawning season*, Nature, 1-13. 
+1. Ono, Kotaro, Sondre Hølleland, Aril Slotte, ..., 2021, *First-year distribution and movement rates of PIT-tagged North East Atlantic mackerel (Scomber Scombrus) varies with timing, location, and fish size at release during the spawning season*, Working paper. 
 2. Slotte, Aril ... , 2021,.....
 
 
