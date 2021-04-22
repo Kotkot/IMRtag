@@ -4,9 +4,19 @@ fish size at release during the spawning season
 ================
 
 *Contributors: Kotaro Ono<sup>1†</sup>, Sondre Hølleland<sup>1†</sup>,
-Aril Slotte<sup>1</sup>,….*
+Anna Heiða Ólafsdóttir<sup>2</sup>, Steve Mackinson<sup>3</sup>, Jan
+Arge Jacobsen<sup>4</sup>, Aril Slotte<sup>1</sup>*
 
-*<sup>1</sup>Institute of Marine Research.*
+*<sup>1</sup>Institute of Marine Research (IMR), P.O Box 1870 Nordnes,
+NO-5817 Bergen*
+
+*<sup>2</sup> Marine and Freshwater Research Institute, Reykjavik,
+Iceland*
+
+*<sup>3</sup> Scottish Pelagic Fishersmen’s Association, Fraserburgh,
+Scotland*
+
+*<sup>4</sup> Faroe Marine Research Institute, Torshavn, Faroe Islands*
 
 *<sup>†</sup> Responsible for the code.*
 
@@ -45,7 +55,11 @@ information (Northward and Eastward sea water velocity), from
     distribution and movement rates of PIT-tagged North East Atlantic
     mackerel (Scomber Scombrus) varies with timing, location, and fish
     size at release during the spawning season*, Working paper.
-2.  Slotte, Aril … , 2021,…..
+2.  Aril Slotte (IMR), Anna Ólafsdóttir (MFRI), Sigurður Þór Jónsson
+    (MFRI), Jan Arge Jacobsen (FAMRI) and Steve Mackinson (SPFA) (2021)
+    PIT-tag time series for studying migrations and use in stock
+    assessment of North East Atlantic mackerel (Scomber Scombrus)
+    <http://metadata.nmdc.no/metadata-api/landingpage/f9e8b1cff4261cf6575e70e56c4c3b3e>
 
 ## Authors’ github accounts
 
@@ -56,5 +70,8 @@ information (Northward and Eastward sea water velocity), from
 ## License
 
 This project is licensed under the GNU GPLv3 License - see
-[LICENSE.md](LICENSE.md) for details. The data is licenced under ….
-**Link to data site here**.
+[LICENSE.md](LICENSE.md) for details. The data is licensed under
+Creative Commons [CC
+BY 4.0](https://creativecommons.org/licenses/by/4.0/) license and can be
+downloaded from [Norwegian Marine Data
+Centre](http://metadata.nmdc.no/metadata-api/landingpage/f9e8b1cff4261cf6575e70e56c4c3b3e).
