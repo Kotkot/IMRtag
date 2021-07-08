@@ -1,2 +1,77 @@
-### This program is for analysing the mackerel tagging data 
-### We look at distribution pattern, migration distance, etc
+First-year distribution and movement rates of PIT-tagged North East
+Atlantic mackerel (Scomber Scombrus) varies with timing, location, and
+fish size at release during the spawning season
+================
+
+*Contributors: Kotaro Ono<sup>1†</sup>, Sondre Hølleland<sup>1†</sup>,
+Anna Heiða Ólafsdóttir<sup>2</sup>, Steve Mackinson<sup>3</sup>, Jan
+Arge Jacobsen<sup>4</sup>, Aril Slotte<sup>1</sup>*
+
+*<sup>1</sup>Institute of Marine Research (IMR), P.O Box 1870 Nordnes,
+NO-5817 Bergen*
+
+*<sup>2</sup> Marine and Freshwater Research Institute, Reykjavik,
+Iceland*
+
+*<sup>3</sup> Scottish Pelagic Fishersmen’s Association, Fraserburgh,
+Scotland*
+
+*<sup>4</sup> Faroe Marine Research Institute, Torshavn, Faroe Islands*
+
+*<sup>†</sup> Responsible for the code.*
+
+*Correspondance to: <kotaro.uno@hi.no>*
+
+*Paper can be found [here](https://www.hi.no) (real link to come).*
+
+This repository contains the necessary code for reproducing results from
+the paper *First-year distribution and movement rates of PIT-tagged
+North East Atlantic mackerel (Scomber Scombrus) varies with timing,
+location, and fish size at release during the spawning season*.
+
+## Data
+
+All use of the data should cite Slotte et. al.(2021).
+
+The data used can be downloaded via API using functions from the
+[fishvice/taggart](https://github.com/fishvice/taggart) package. The
+package can be installed by
+
+``` r
+devtools::install_github("fishvice/taggart", dependencies = FALSE)
+```
+
+Due to some no longer maintained dependent packages, we have also copied
+the necessary functions to download the data in the
+*R/download\_data\_functions.R* file.
+
+The current data in *Data/current.nc* is average monthly surface current
+information (Northward and Eastward sea water velocity), from
+[Copernicus Marine Service](http://marine.copernicus.eu).
+
+## References
+
+1.  Ono, Kotaro, Sondre Hølleland, Aril Slotte, …, 2021, *First-year
+    distribution and movement rates of PIT-tagged North East Atlantic
+    mackerel (Scomber Scombrus) varies with timing, location, and fish
+    size at release during the spawning season*, Working paper.
+2.  Aril Slotte (IMR), Anna Ólafsdóttir (MFRI), Sigurður Þór Jónsson
+    (MFRI), Jan Arge Jacobsen (FAMRI) and Steve Mackinson (SPFA) (2021)
+    PIT-tag time series for studying migrations and use in stock
+    assessment of North East Atlantic mackerel (Scomber Scombrus)
+    <http://metadata.nmdc.no/metadata-api/landingpage/f9e8b1cff4261cf6575e70e56c4c3b3e>
+
+## Authors’ github accounts
+
+**Kotaro Ono** - [kotkot](https://github.com/kotkot)
+
+**Sondre Hølleland** - [holleland](https://github.com/holleland)
+
+## License
+
+This project is licensed under the GNU GPLv3 License - see
+[LICENSE.md](LICENSE.md) for details. The data is licensed under
+Creative Commons [CC
+BY 4.0](https://creativecommons.org/licenses/by/4.0/) license and can be
+downloaded from [Norwegian Marine Data
+Centre](http://metadata.nmdc.no/metadata-api/landingpage/f9e8b1cff4261cf6575e70e56c4c3b3e).
