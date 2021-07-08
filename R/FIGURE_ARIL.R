@@ -10,9 +10,11 @@ library(raster) # package for raster manipulation
 library(rgdal) # package for geospatial analysis
 library(ggplot2) # package for plotting
 library(tidyverse)
+library(ggnewscale)
 
 
 nc_data <- nc_open("data/current.nc")
+nc_data <- nc_open("data/current_new.nc")
 
 print(nc_data)
 lon <- ncvar_get(nc_data, "longitude")
@@ -42,18 +44,18 @@ Dat$speed <- sqrt(Dat$EW_comp^2 + Dat$NS_comp^2)
 
 ggplot(Dat, aes(x=speed)) + geom_histogram()
 
-
-Current_data <- Dat %>% filter(time %in% c(565008, 573768, 582552, 591312, 600072, 608832))
-Current_data$Release_year <- (2014:2019)[match(Current_data$time, c(565008, 573768, 582552, 591312, 600072, 608832))]
+### May current data
+Current_data <- Dat %>% filter(time %in% c(564276, 573036, 581820, 590580, 599340, 608100, 616884))
+Current_data$Release_year <- (2014:2020)[match(Current_data$time, c(564276, 573036, 581820, 590580, 599340, 608100, 616884))]
 Current_data <- Current_data %>% filter(lat>51, lon<15, lat<68.5)
 
 
 lag = 0
-years <- 2014:2019
+years <- 2014:2020
 library(lubridate)
 library(sf)
 dat_release <- Data_mackerel_all %>% subset(Tag_area %in% c("South_Ireland", "North_Ireland"))
-dat_release$julian <-  sapply(1:nrow(dat_release), function(k) as.numeric(julian(dat_release$relesedate[k],
+dat_release$julian <-  sapply(1:nrow(dat_release), function(k) as.numeric(julian(dat_release$ReleaseDate[k],
                                                                                  as.POSIXct(paste0(dat_release$Release_year[k], "-01-01"), tz = "GMT"))))
 dat_release$Tag_area <- as.character(dat_release$Tag_area)
 dat_release$Tag_area <- as.factor(dat_release$Tag_area)
@@ -63,7 +65,7 @@ dat_recap <- Data_mackerel_final
 dat_recap$Release_year <- as.integer(as.character(dat_recap$Release_year))
 dat_recap <- dat_recap %>% subset(Catch_year==Release_year+lag &
                                               Tag_area %in% c("South_Ireland", "North_Ireland"))
-dat_recap$julian <-  sapply(1:nrow(dat_recap), function(k) as.numeric(julian(dat_recap$recapturedate[k], as.POSIXct(paste0(dat_recap$Release_year[k], "-01-01"), tz = "GMT"))))
+dat_recap$julian <-  sapply(1:nrow(dat_recap), function(k) as.numeric(julian(dat_recap$RecaptureDate[k], as.POSIXct(paste0(dat_recap$Release_year[k], "-01-01"), tz = "GMT"))))
 dat_recap$Tag_area <- as.character(dat_recap$Tag_area)
 dat_recap$Tag_area <- as.factor(dat_recap$Tag_area)
 
@@ -77,9 +79,9 @@ colnames(dat_recap_new) <- c("Release_year", "cLon", "cLat", "julian_recapture",
 
 
 
-dat_release_new <- as_tibble(dat_release) %>% dplyr::select(lo, la, julian, Release_year) %>%
-  group_by(Release_year) %>% count(round(lo,1), round(la,1), round(julian,0))
-colnames(dat_release_new) <- c("Release_year", "lo", "la", "julian_release", "n")
+dat_release_new <- as_tibble(dat_release) %>% dplyr::select(Longitude, Latitude, julian, Release_year) %>%
+  group_by(Release_year) %>% count(round(Longitude,1), round(Latitude,1), round(julian,0))
+colnames(dat_release_new) <- c("Release_year", "Longitude", "Latitude", "julian_release", "n")
 
 
 ncount_release <- dat_release %>% group_by(Release_year) %>% count()
@@ -90,7 +92,7 @@ ncount_recap <- dat_recap %>% group_by(Release_year) %>% count()
 ncount_recap$lon = c(-16)
 ncount_recap$lat = c(70)
 ncount_recap$label = paste0("N-recaptured = ", ncount_recap$n, "\n (rate = ", round(ncount_recap$n/ncount_release$n,3)*100, "%)")
-Select_catch <- filter(Catch_data, year(catchdate) %in% as.integer(years+lag))
+Select_catch <- filter(Catch_data, year(CatchDate) %in% as.integer(years+lag))
 Select_catch <- subset(Select_catch, subset=c(!is.na(cLon) | !is.na(cLat)))
 Select_catch <- subset(Select_catch, cLat<72)
 # --- Should select take out catches prior <= may   ---
@@ -98,39 +100,41 @@ Select_catch <- subset(Select_catch, cLat<72)
 #Select_catch <- filter(Select_catch) # catches from june - december
 hull_catch <- NULL
 for(i in 1:length(years)){
-(hull_catch <- rbind(hull_catch, filter(Select_catch, year(catchdate) == years[i],
-                                        month(processing_date) %in% 6:12) %>%
-                       dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat, catchdate) %>%
-  mutate(Release_year = year(catchdate))))
+(hull_catch <- rbind(hull_catch, filter(Select_catch, year(CatchDate) == years[i],
+                                        month(ProcessingDate) %in% 6:12) %>%
+                       dplyr::slice(chull(cLon, cLat)) %>% dplyr::select(cLon, cLat, CatchDate) %>%
+  mutate(Release_year = year(CatchDate))))
 }
 
 
-(weights <- Catch_data %>% filter(between(month(catchdate), 6,12)) %>% mutate(catchyear = year(catchdate)) %>%
-  group_by(catchyear) %>% summarize(biomass = sum(weight/1e6)) %>% filter(between(catchyear,2014,2019)) %>%
-  rename(Release_year = catchyear) %>% add_column(xpos = -Inf, ypos = Inf)
+(weights <- Catch_data %>% filter(between(month(CatchDate), 6,12)) %>% mutate(Catch_year = year(CatchDate)) %>%
+  group_by(Catch_year) %>% summarize(biomass = sum(CatchWeight/1e6)) %>% filter(between(Catch_year,2014,2020)) %>%
+  rename(Release_year = Catch_year) %>% add_column(xpos = -Inf, ypos = Inf)
 )
-area <- Polygon(hull_new[,c('cLon','cLat')])@area
+area <- Polygon(hull_catch[,c('cLon','cLat')])@area
 Norway <- st_read("shapefile/ne_10m_land.shp")
 Norway <- st_crop(Norway, c(xmin = -31, ymin = 50, xmax = 19, ymax = 70))
 
 #dat_release_new[which.max(dat_release_new$lo) ,"lo"] <- -dat_release_new[which.max(dat_release_new$lo) ,"lo"]
 g1 <- ggplot(Norway) + geom_sf() +
+  # geom_segment(data = Current_data %>% filter(speed > 0.1), aes(x=lon, y=lat, xend = lon + EW_comp*5, yend = lat + NS_comp*5, col=speed),
+  #              arrow = arrow(angle = 15, length = unit(0.03, "inches"), type = "closed"), alpha = 0.8, size=0.3) +
+  # scale_color_gradient(low="lightblue1", high="darkblue",  name = "Current\nspeed (m/s)") +
+  # new_scale_color() +
+  # geom_point(data=dat_release_new %>% arrange(desc(n)),
+  #            aes(x=Longitude, y=Latitude,col=julian_release, size=n)) +
   geom_point(data=dat_release_new %>% arrange(desc(n)),
-             aes(x=lo, y=la,col=julian_release, size=n)) +
+             aes(x=Longitude, y=Latitude,col=julian_release),size=2) +
   #geom_polygon(data = hull, alpha = 0.5, aes(x=cLon, y=cLat)) +
   scale_color_viridis_c(limits = c(120, 160), name = "Julian\nRelease",
                         breaks = seq(120,160,5),
                         guide = guide_colorbar(barheight = 15, ticks.colour = "grey20")) +
   #guides(color = guide_colorbar(barheight = 15))+
-  scale_size_continuous(breaks=c(1,10,100,1000,5000),range = c(1, 6), name = "#Releases") +
-  new_scale_color() +
-  geom_segment(data = Current_data %>% filter(speed > 0.1), aes(x=lon, y=lat, xend = lon + EW_comp*5, yend = lat + NS_comp*5, col=speed),
-               arrow = arrow(angle = 15, length = unit(0.03, "inches"), type = "closed"), alpha = 0.8, size=0.3) +
-  scale_color_gradient(low="lightblue1", high="darkblue",  name = "Current\nspeed (m/s)") +
+  # scale_size_continuous(breaks=c(2,5,10,100,1000,5000),range = c(1, 7), name = "#Releases", trans="log") +
+  scale_size_continuous(breaks=seq(1,7),range = c(1, 7), name = "#Recaptures") +
   new_scale_color() +
   geom_point(data=dat_recap_new %>% arrange(desc(julian_recapture)),
-             aes(x=cLon, y=cLat, col = julian_recapture),
-             size = 3,
+             aes(x=cLon, y=cLat, col = julian_recapture, size=n),
                  #size = 900+200*order(julian_recapture, decreasing = FALSE)/nrow(dat_recap_new)),
              pch = 18) +
   scale_color_gradient2(low ="darkgreen", mid = "yellow", high = "red", name = "Julian\nRecapture",
@@ -154,12 +158,145 @@ g1 <- ggplot(Norway) + geom_sf() +
   geom_text(data=ncount_release, aes(x=5, y=52.5, label=label), hjust=-.05, size=3)+
   geom_text(data=ncount_recap, aes(x=5, y=51, label=label), hjust=-.05, size=3) + labs(x="Longitude", y="Latitude") +
   theme_bw() + theme(plot.title = element_text(hjust = 0.5),
+                     legend.title = element_text(face = "bold", size = 14),
+                     axis.text = element_text(size=12),
+                     axis.title = element_text(size=16),
+                     strip.background = element_rect(fill = "white"),
+                     strip.text = element_text(face ="bold", size = 16)) +
+  geom_hline(yintercept=62, linetype=2) + geom_vline(xintercept=-10, linetype=2)
+                     #panel.spacing.x = unit(6.5, "mm"))+
+ggsave(g1, filename = "MS/figs/Fig1_May_average_new.pdf",
+       width=42, height=32, units="cm", dpi = 450)
+ggsave(g1, filename = "MS/figs/Fig1_May_average_new1.pdf",
+       width=32, height=42, units="cm", dpi = 450)
+
+
+##### Figure 2 in the paper
+Catch_data_test <- Catch_data %>% mutate(date = as.Date(ProcessingDate))
+Catch_data_test$Year <- as.numeric(substr(Catch_data_test$date, start=1, stop=4))
+Catch_data_test <- Catch_data_test %>% filter(Year>=2014)
+Catch_data_test$julian_catch <-  as.numeric(julian(as.POSIXct(Catch_data_test$date), as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
+Catch_data_test$julian_catch_std <-  Catch_data_test$julian_catch %% 365
+Catch_data_test$month <-  month(as.POSIXct(Catch_data_test$date))
+Catch_data_test <- Catch_data_test %>% filter(julian_catch_std >= 180) %>% group_by(Year, ICES_Rectangle) %>% summarise(Catch=sum(CatchWeight), Julian = mean(julian_catch_std))
+library(mapplots)
+coords = ices.rect(Catch_data_test$ICES_Rectangle)
+Catch_data_test <- cbind(Catch_data_test, coords)
+Catch_data_test <- Catch_data_test %>% mutate(Catch_ton = Catch/1000)
+
+
+plot_catch <- ggplot(Norway) + geom_sf() +
+  geom_tile(data=Catch_data_test, aes(x=lon, y=lat, fill=Catch_ton)) +
+  facet_wrap(~Year, ncol=2) + scale_fill_gradient(low="lightblue1", high="darkblue", name = "Catch (t)") +
+  labs(x="Longitude", y="Latitude") +
+  coord_sf(xlim=c(-30,20), ylim=c(50,70)) +
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5),
+                     legend.title = element_text(face = "bold", size = 13),
+                     strip.background = element_rect(fill = "white"),
+                     strip.text = element_text(face ="bold", size = 15),
+                     axis.title = element_text(size=15),
+                     axis.text = element_text(size=13))
+
+plot_movement <- ggplot(Norway) + geom_sf() +
+  geom_point(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=log_rate)) +
+  facet_wrap(~Release_year, ncol=2) + scale_color_gradient(low="lightblue1", high="darkblue", name = "Mvt rate\n   (log)") +
+  labs(x="Longitude", y="Latitude") +
+  coord_sf(xlim=c(-30,20), ylim=c(50,70)) +
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5),
+                     legend.title = element_text(face = "bold", size = 13),
+                     strip.background = element_rect(fill = "white"),
+                     strip.text = element_text(face ="bold", size = 15),
+                     axis.title = element_text(size=15),
+                     axis.text = element_text(size=13))
+
+Fig2 <- grid.arrange(plot_catch, plot_movement, ncol=2)
+
+ggsave(Fig2, filename = "MS/figs/Fig2.pdf",
+       width=15, height=12, dpi = 450)
+
+
+
+
+
+
+
+# -----------------------------------------------------------------------
+# ---- Another figure with the location of the Channel without the tags
+# -----------------------------------------------------------------------
+
+library(ggOceanMaps)
+
+Norway <- st_read("shapefile/ne_10m_land.shp")
+Norway <- st_crop(Norway, c(xmin = -34, ymin = 49, xmax = 22, ymax = 72))
+
+dt <- data.frame(lon = c(-31, -31, 19, 19), lat = c(45, 70, 70, 45))
+
+Current_data1 <- Dat %>% filter(time %in% c(565008, 573768, 582552, 591312, 600072, 608832)) # June
+Current_data1$Release_year <- (2014:2019)[match(Current_data1$time, c(565008, 573768, 582552, 591312, 600072, 608832))]
+Current_data1 <- Current_data1 %>% filter(lat>51, lon<15, lat<68.5)
+Current_data2 <- Dat %>% filter(time %in% c(564276, 573036, 581820, 590580, 599340, 608100)) # May
+Current_data2$Release_year <- (2014:2019)[match(Current_data2$time, c(564276, 573036, 581820, 590580, 599340, 608100))]
+Current_data2 <- Current_data2 %>% filter(lat>51, lon<15, lat<68.5)
+Current_data3 <- Dat %>% filter(time %in% c(565740, 574500, 583284, 592044, 600804, 609564)) # July
+Current_data3$Release_year <- (2014:2019)[match(Current_data3$time, c(565740, 574500, 583284, 592044, 600804, 609564))]
+Current_data3 <- Current_data3 %>% filter(lat>51, lon<15, lat<68.5)
+Current_data <- Current_data2
+
+survey <- Current_data %>% st_as_sf(crs = 4326, coords = c("lon", "lat"))
+surv_utm_coords <- st_coordinates(survey)
+Current_data$X <- surv_utm_coords[,1]
+Current_data$Y <- surv_utm_coords[,2]
+
+X <- basemap_data(limits = NULL, data = dt, shapefiles = NULL,
+                  bathymetry = TRUE, glaciers = FALSE, resolution = "low",
+                  lon.interval = NULL, lat.interval = NULL,
+                  rotate = FALSE, verbose = FALSE)
+
+Bathy <- X$shapefiles$bathy %>% st_as_sf(crs = 4326, coords = c("lon", "lat"))
+
+cc <- scales::seq_gradient_pal("lightblue1", "darkblue", "Lab")(seq(0,1,length.out=8))
+
+g2 <- ggplot(data=Norway) + geom_sf(col=grey(0.3)) +
+  geom_sf(data = Bathy, aes(col=depth, fill=depth)) +
+  scale_colour_manual(values=cc, name = "Depth") + scale_fill_manual(values=cc, name = "Depth") + geom_sf(data=Norway, col=grey(0.3)) +
+  coord_sf(xlim=c(-31, 19), ylim=c(50, 70)) +
+  new_scale_color() +
+  new_scale_fill() +
+  geom_segment(data = Current_data %>% filter(speed > 0.1), aes(x=X, y=Y, xend = X + EW_comp*5, yend = Y + NS_comp*5, col=speed),
+               arrow = arrow(angle = 15, length = unit(0.03, "inches"), type = "closed"), alpha = 0.8, size=0.3) +
+  scale_color_gradient(low="lightpink1", high="darkred", name = "Current\nspeed (m/s)") +
+  facet_wrap(~Release_year, ncol = 2) + labs(x="Longitude", y="Latitude") +
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5),
                      legend.title = element_text(face = "bold", size = 12),
                      strip.background = element_rect(fill = "white"),
                      strip.text = element_text(face ="bold", size = 14))
-                     #panel.spacing.x = unit(6.5, "mm"))+
-ggsave(g1, filename = "wd/figs/Fi1_new.pdf",
+#panel.spacing.x = unit(6.5, "mm"))+
+ggsave(g2, filename = "MS/figs/Fig2_May_Current_bathym.pdf",
        width=28, height=32, units="cm", dpi = 450)
+
+
+
+g3 <- ggplot(data=Norway) + geom_sf(col=grey(0.3)) +
+  geom_sf(data = Bathy, aes(col=depth, fill=depth)) + theme_bw() +
+  scale_colour_manual(values=cc) + scale_fill_manual(values=cc) + geom_sf(data=Norway, col=grey(0.3)) +
+  coord_sf(xlim=c(-31, 19), ylim=c(50, 70)) + labs(x="Longitude", y="Latitude") +
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5),
+                     legend.title = element_text(face = "bold", size = 12),
+                     strip.background = element_rect(fill = "white"),
+                     strip.text = element_text(face ="bold", size = 14))
+#panel.spacing.x = unit(6.5, "mm"))+
+ggsave(g3, filename = "MS/figs/Fig_background.pdf",
+       width=18, height=18, units="cm", dpi = 450)
+
+
+
+
+
+
+
+
+
+
 
 # ------------------------------------------
 # ---- Arils supplementary figure ----------

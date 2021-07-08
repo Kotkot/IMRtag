@@ -1,6 +1,6 @@
 N_cross = 500
 P_cross <- 0.8
-do_parallel <- TRUE
+do_parallel <- FALSE
 
 # Just in case you have not compiled and loaded the model
 # use_version_simple <- paste0(getwd(), "/src/mackerel_mvt_model_nothresh_RE")
@@ -19,7 +19,8 @@ cross_validation <- function(x){
       training <- Data_mackerel_use_Ireland_select %>% group_by(Release_year) %>% slice_sample(prop=P_cross) %>% ungroup()
       testing <- Data_mackerel_use_Ireland_select[-training$ID,]
 
-      m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + length_scaled + julian_recapture_scaled, data=training)
+      #m1 <- lm(log_rate ~ factor(Tag_area)*factor(Release_timing) + length_scaled + julian_recapture_scaled, data=training)
+      m1 <- lm(log_rate ~ factor(Release_timing) + Latitude_scaled:factor(Release_timing) + Latitude2_scaled:factor(Release_timing) + length_scaled + julian_recapture_scaled, data=training)
       m_frame <- model.frame(m1)
       XX <- model.matrix(m1, m_frame)
       XX_pred <- model.matrix(m1, data=testing)
@@ -41,7 +42,8 @@ cross_validation <- function(x){
                              log_sigma_year = log(0.2))
       Map = list()
       obj <- MakeADFun(data_tmb, parameters_tmb, random = "year", DLL = "mackerel_mvt_model_nothresh_RE", map=Map, silent =TRUE)
-      opt <- fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000), quiet=TRUE)
+      # opt <- TMBhelper::fit_tmb( obj=obj, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000), quiet=TRUE)
+      opt <- nlminb(obj$par, obj$fn, obj$gr)
       sd_report <- sdreport(obj)
       mu_pred <- matrix(summary(sd_report, "report")[grep("mu_pred", rownames(summary(sd_report, "report"))),1], ncol=1, byrow=FALSE)
 
@@ -65,7 +67,7 @@ cross_validation <- function(x){
                        Year_ID_pred = as.numeric(as.character(testing$Release_year))-2014,
                        Likconfig = 0)      # 0 = dnorm, 1 = dgamma
 
-      best_mod <- c(which.min(AIC_selection),which.min(AIC_selection2))[which.min(c(AIC_selection[which.min(AIC_selection)],AIC_selection2[which.min(AIC_selection2)]))]
+      best_mod <- 1
 
       parameters_tmb1 <- list(beta = matrix(c(rep(10,N_threshold),runif((ncol(XX)-1)*N_threshold,-2,2)),byrow=T, ncol=N_threshold),
                               log_sigma = rep(log(0.2),N_threshold),
@@ -73,15 +75,18 @@ cross_validation <- function(x){
                               log_sigma_year = rep(log(0.2),N_threshold))
       Map1 = list()
       Map1$beta <- factor(Maps_best[best_mod,])
+      # Map1$beta <- factor(Maps2[[best_mod]])
       Map1$log_sigma <- factor(c(2*ncol(XX)+1:2))
       Map1$year <- factor(N_threshold*ncol(XX)+2+matrix(1:length(parameters_tmb1$year), ncol=N_threshold))
       Map1$log_sigma_year <- factor(c(N_threshold*ncol(XX)+15:16))
       parameters_tmb1$beta[which(is.na(Maps_best[best_mod,]))] <- 0
+      # parameters_tmb1$beta[which(is.na(Maps2[[best_mod]]))] <- 0
 
       obj1 <- MakeADFun(data_tmb1, parameters_tmb1, random = "year", DLL = "mackerel_mvt_model_RE", map=Map1, silent =TRUE)
-      opt1 <- fit_tmb( obj=obj1, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000), quiet=TRUE)
+      # opt1 <- fit_tmb( obj=obj1, lower=-14, upper=14, getsd=FALSE, bias.correct=FALSE, control = list(eval.max = 20000, iter.max = 20000), quiet=TRUE)
+      opt1 <- nlminb(obj1$par, obj1$fn, obj1$gr)
       sd_report1 <- sdreport(obj1)
-      mu_pred <- matrix(summary(sd_report1, "report")[grep("mu_pred", rownames(summary(sd_report1, "report"))),1], ncol=2, byrow=FALSE)
+      mu_pred <- matrix(summary(sd_report1, "report")[which(rownames(summary(sd_report1, "report")) == "mu_pred"),1], ncol=2, byrow=FALSE)
 
       LL <- obj1$report()$LL
 
@@ -140,7 +145,7 @@ if(do_parallel)
   clusterExport(cl,
                 varlist = c("P_cross", "Data_mackerel_use_Ireland_select", "AIC_selection",
                             "AIC_selection2","threshold_vals", "mean_diff_tag_area",
-                            "Maps_best"))
+                            "Maps_best", "Maps2"))
   t1.core <- Sys.time()
   Cross_val_res <- t(parSapply(cl, 1:N_cross, cross_validation))
   t2.core  <- Sys.time()
@@ -161,7 +166,7 @@ print(
   theme_bw() +
   geom_text(data=data.frame(Model_type=c("No threshold"), MSE=c(0.031)), label=deparse(expression1), parse=TRUE) +
   geom_text(data=data.frame(Model_type=c("With threshold"), MSE=c(0.031)), label=deparse(expression2), parse=TRUE) +
-  coord_cartesian(ylim=c(0.017,0.032))
+  coord_cartesian(ylim=c(0.01,0.032))
   g1
 )
 
