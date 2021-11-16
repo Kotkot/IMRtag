@@ -11,6 +11,9 @@
 ###
 ################################################
 
+#### Set the library path
+.libPaths(c("C:/Program Files/R/R-3.6.2/library", "C:/Program Files/R/R-4.0.5/library"))
+
 #### Installing required packages
 	#devtools::install_github("IMRpelagic/taggart", dependencies = FALSE)
   # devtools::install_github("hafro/geo")
@@ -34,6 +37,10 @@
   library(TMBhelper)
   library(ggpubr) # very nice option for arrange and labeling multipanel plot for manuscript
   library(sf)
+
+Norway <- st_read("C:/Users/a23092/Dropbox/IMR_projects/Shapefiles/ne_10m_land.shp")
+Norway <- st_crop(Norway, c(xmin = -35, ymin = 51, xmax = 21, ymax = 73))
+
 
 #### Downloading data and checking it
 #	tg_catches()         %>% glimpse()
@@ -94,7 +101,7 @@
 		Data_mackerel_all$date <- as.numeric(as.Date(Data_mackerel_all$ReleaseDate) - Data_mackerel_all$firstyear)
 		Data_mackerel_all$julian_release <-  as.numeric(julian(Data_mackerel_all$ReleaseDate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
 		Data_mackerel_all$julian_release_std <-  Data_mackerel_all$julian_release %% 365
-		Data_mackerel_all$julian_recapture <-  as.numeric(julian(Data_mackerel_all$RecaptureDate, as.POSIXct(paste0(2014, "-01-01"), tz = "GMT")))
+		Data_mackerel_all$julian_recapture <-  as.numeric(julian(Data_mackerel_all$RecaptureDate, as.POSIXct(paste0(2014, "-06-01"), tz = "GMT")))
 		Data_mackerel_all$julian_recapture_std <-  Data_mackerel_all$julian_recapture %% 365
 
 		## Mvt rate = response variable in the analysis below
@@ -154,30 +161,11 @@
 	  mutate(mean_lon_tag_area=mean(Longitude),
 	         mean_lat_tag_area=mean(Latitude))
 
-	Data_mackerel_final_sameyear <- Data_mackerel_final[which(as.numeric(Data_mackerel_final$Release_year) == as.numeric(Data_mackerel_final$Catch_year)),]
-	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year) %>%
-	  mutate(mean_lon_tag=mean(Longitude),
-	         mean_lat_tag=mean(Latitude),
-	         mean_lon_recap=mean(cLon),
-	         mean_lat_recap=mean(cLat))
-	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, length_bin) %>%
-	  mutate(mean_lon_recap_size=mean(cLon),
-	         mean_lat_recap_size=mean(cLat))
-	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, length_bin, Tag_area_large) %>%
-	  mutate(mean_lon_recap_size_area=mean(cLon),
-	         mean_lat_recap_size_area=mean(cLat))
-	Data_mackerel_final_sameyear <- Data_mackerel_final_sameyear %>% group_by(Release_year, Tag_area_large) %>%
-	  mutate(mean_lon_tag_area=mean(Longitude),
-	         mean_lat_tag_area=mean(Latitude))
-
-	Data_mackerel_use_select <- subset(Data_mackerel_final, duration < 365)
-	Data_mackerel_use_select <- Data_mackerel_final_sameyear
-
 	Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("South_Ireland", "North_Ireland"))
 
 	## Using duration (not standardized) but focusing on within year recapture
-	Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2020)
-	Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
+	# Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland, duration < 180 & Release_year%in%2014:2020)
+	# Data_mackerel_use_Ireland_select$Release_year <- as.factor(as.character(Data_mackerel_use_Ireland_select$Release_year))
 
 	## Do some explanatory analysis to explore what is causing these patterns of residuals
 	mean_tag_area <- Data_mackerel_use_Ireland_select %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
@@ -505,20 +493,42 @@
 
 ########## Preparing the final data from Ireland for the analysis
 
-	Data_mackerel_use_Ireland_select_origin <- Data_mackerel_use_Ireland_select
+	Data_mackerel_use_Ireland1 <- Data_mackerel_use_Ireland
+	Data_mackerel_use_Ireland1$Catch_month <- as.numeric(as.character(Data_mackerel_use_Ireland1$Catch_month))
+	Data_mackerel_use_Ireland1$Catch_year <- as.numeric(as.character(Data_mackerel_use_Ireland1$Catch_year))
+	Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(1,2)),'Catch_month'] <- Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(1,2)),'Catch_month'] + 12
+	Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(13,14)),'Catch_year'] <- Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(13,14)),'Catch_year'] - 1
+	Data_mackerel_use_Ireland_select_origin <- Data_mackerel_use_Ireland1 %>%
+	  filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year)), Release_year%in%2014:2020)
+	Data_mackerel_use_Ireland_select_origin_year1 <- Data_mackerel_use_Ireland1 %>%
+	  filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+1, Release_year%in%2014:2020)
+	Data_mackerel_use_Ireland_select_origin_year2 <- Data_mackerel_use_Ireland1 %>%
+	  filter(Catch_month %in% c(7:14),  as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+2, Release_year%in%2014:2020)
+	Data_mackerel_use_Ireland_select_origin$Catch_year <- as.factor(Data_mackerel_use_Ireland_select_origin$Catch_year)
+	Data_mackerel_use_Ireland_select_origin_year1$Catch_year <- as.factor(Data_mackerel_use_Ireland_select_origin_year1$Catch_year)
+	Data_mackerel_use_Ireland_select_origin_year2$Catch_year <- as.factor(Data_mackerel_use_Ireland_select_origin_year2$Catch_year)
 
-  ## Doing the analysis of P(moving to Iceland)
-  	model_save <- list()
-  	for (i in 10:11){
-  	  Limit_month <- i ## c(9,10,11)
-      if (i == 9)   label <- "Sep30th"
-      if (i == 10)  label <- "Oct31st"
-      if (i == 11)  label <- "Nov30st"
-      if (i == 12)  label <- "Dec31st"
+
+	ggplot(Norway) + geom_sf() + geom_jitter(data=Data_mackerel_use_Ireland_select_origin, aes(x=cLon, y=cLat, col=factor(Catch_month))) +
+	  theme_bw() + facet_wrap(~Catch_year) + geom_hline(yintercept=62) + geom_vline(xintercept=-10)+ geom_vline(xintercept=-4, col="red")
+
+	model_type <- c("Iceland", "Norway", "Northsea")[2]
+	run_directionality <- function(model_type, month, best="AIC", data_origin="0year"){
+  ## Doing the analysis of P(moving to Iceland) or P(moving to Norway)
+  	  Limit_month <- month ## c(9,10,11)
+      if (month == 9)   label <- "Sep30th"
+      if (month == 10)  label <- "Oct31st"
+      if (month == 11)  label <- "Nov30st"
+      if (month == 12)  label <- "Dec31st"
+      if (month == 13)  label <- "Jan31st"
+      if (month == 14)  label <- "Feb28th"
 
   			# Full data
-  	      Data_mackerel_use_Ireland_select_origin$month <- as.numeric(Data_mackerel_use_Ireland_select_origin$Catch_month)
-  	      Data_mackerel_use_Ireland_select <- subset(Data_mackerel_use_Ireland_select_origin, Release_year %in% 2014:2020) %>% filter(month <= Limit_month)
+          if (data_origin=="0year") data = Data_mackerel_use_Ireland_select_origin
+          if (data_origin=="1year") data = Data_mackerel_use_Ireland_select_origin_year1
+          if (data_origin=="2year") data = Data_mackerel_use_Ireland_select_origin_year2
+          data$month <- as.numeric(data$Catch_month)
+  	      Data_mackerel_use_Ireland_select <- subset(data, Release_year %in% 2014:2020) %>% filter(month <= Limit_month)
         # Selected data
   			  # Data_mackerel_use_Ireland_select_filter <- subset(Data_mackerel_use_Ireland_select, cLon>-10)
   			  #Data_mackerel_use_Ireland_select_filter <- subset(Data_mackerel_use_Ireland_select, cLon< -10)
@@ -533,8 +543,12 @@
   			Data_mackerel_use_Ireland_select$Latitude2_scaled <- scale((Data_mackerel_use_Ireland_select$Latitude)^2)
 
   			Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select %>%
-  			  mutate(toiceland= ifelse(cLon < -10, 1, 0),
-  			         dist_toiceland = abs(as.numeric(pointDistance(matrix(cbind(max(cLon, na.rm=T)+0.01, cLat),ncol=2), matrix(cbind(cLon, cLat), ncol=2), lonlat=TRUE))))
+  			  mutate(toiceland= ifelse(cLon < -10 & cLat>=62, 1, 0),
+  			         dist_toiceland = abs(as.numeric(pointDistance(matrix(cbind(max(cLon, na.rm=T)+0.01, cLat),ncol=2), matrix(cbind(cLon, cLat), ncol=2), lonlat=TRUE))),
+  			         to_norway = ifelse((cLon >= -10 & cLat>=62), 1, 0),
+  			         to_northsea = ifelse((cLon >= -10 & cLat<62), 1, 0),
+  			         direction = ifelse(cLon < -10 & cLat>=62, 1L, ifelse((cLon >= -10 & cLat>=62), 2L, ifelse((cLon >= -10 & cLat<62), 0L, 3L)))
+  			         )
 
   			Data_mackerel_use_Ireland_select %>% group_by(toiceland, Catch_year) %>% summarize(n=n())
 
@@ -551,39 +565,248 @@
   			                      group = droplevels(group),
   			                      Catch_year = droplevels(Catch_year),
   			                      julian_recapture_std_scaled = scale(julian_recapture_std),
+  			                      julian_recapture_scaled = scale(julian_recapture),
   			                      Latitude_scaled = scale(Latitude),
   			                      Length_scaled = scale(Length),
-  			                      toiceland_bin = as.factor(toiceland))
-  			# m110 <- gam(toiceland ~  s(Latitude, by=group) + s(Length, by=Catch_year) + s(julian_recapture_std_scaled, k=3), family=binomial,
-  			#             data = www)
-  			# m111 <- gam(toiceland ~  s(Latitude, by=Catch_year) + s(Length, by=Catch_year) + s(julian_recapture_std_scaled, k=3), family=binomial,
-  			#             data = www)
-  			m1 <- gam(toiceland ~  -1 + s(Latitude) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled, k= 3), family=binomial,
-  			            data = www)
-  			m2 <- gam(toiceland ~  -1 + s(Latitude, by=Release_timing_fact) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled, k= 3), family=binomial,
-  			            data = www)
-  			# m3 <- gam(toiceland ~  -1 + s(Latitude, by=Catch_year) + s(Length, by=Catch_year) + s(julian_recapture_std_scaled, k= 3), family=binomial,
-  			#             data = www)
-  			m4 <- gam(toiceland ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled, k= 3), family=binomial,
-  			            data = www)
-  			m5 <- gam(toiceland ~  -1 + s(Latitude, by=Release_timing_fact) + Catch_year + s(Length) + s(julian_recapture_std_scaled, k= 3), family=binomial,
-  			           data = www)
-  			m6 <- gam(toiceland ~  -1 + s(Latitude, by=Catch_year) + s(Length) + s(julian_recapture_std_scaled, k= 3), family=binomial,
-  			            data = www)
+  			                      toiceland_bin = as.factor(toiceland),
+  			                      tonorway_bin = as.factor(to_norway),
+  			                      tonorthsea_bin = as.factor(to_northsea)
+  			                      )
+  			# m0 <- gam(list(direction ~  -1 + s(Latitude) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled),
+  			#                ~  -1 + s(Latitude) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled)),
+  # 			#           family=multinom(K=2), data = www)  # failed
+  # 			m1 <- gam(list(direction ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  # 			m2 <- gam(list(direction ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  # 			# m3 <- gam(list(direction ~  -1 + s(Latitude) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled),
+  # 			#                ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled)),
+  # 			#           family=multinom(K=2), data = www) # failed
+  # 			m4 <- gam(list(direction ~  -1 + s(Latitude, by=Catch_year) + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude, by=Catch_year) + Catch_year + s(Length) + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  # 			m5 <- gam(list(direction ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude, by=Catch_year) + Catch_year + s(Length) + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  # 			m6 <- gam(list(direction ~  -1 + s(Latitude, by=Catch_year) + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  # 			m7 <- gam(list(direction ~  -1 + s(Latitude) + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude, by=Catch_year) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  # 			m8 <- gam(list(direction ~  -1 + s(Latitude, by=Catch_year, bs="ts") + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude, by=Catch_year) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  # 			mall <- gam(list(direction ~  -1 + s(Latitude, by=Catch_year, bs="ts") + Catch_year + s(Length) + s(julian_recapture_std_scaled),
+  # 			               ~  -1 + s(Latitude, by=Catch_year, bs="ts") + Catch_year + s(Length, by=Catch_year, bs="ts") + s(julian_recapture_std_scaled)),
+  # 			          family=multinom(K=2), data = www)
+  #       AICs <- AIC(m1,m2,m4,m5,m6,m7,m8,mall)
+  #       BICs <- BIC(m1,m2,m4,m5,m6,m7,m8)
+  #
+  #       gam.selection()
+  #       if (best == "AIC") best_model <- list(m1,m2,m4,m5,m6,m7,m8)[[which.min(AICs$AIC)]]
+  #       if (best == "Manual") best_model <- m6
+  #       plot.gam(mall, residuals=TRUE, pch=19, cex=0.5, scale=0,pages = 2)
+  #       plot.gam(best_model, pch=19, cex=0.5, scale=0,pages = 1)
+  #       # qq.gam(best_model, rep = 100, level = 0.9, type = "deviance", rl.col = 2,  rep.col = "gray80", cex=3)
+  #       pred <- predict(best_model, type="response")
+  #       # p1 <- qq.gam(best_model, rep = 5000, level = 0.9, type = "deviance", rl.col = 2,  rep.col = "gray80", cex=3, s.rep=5000)
+  #       # points(qnorm(as.numeric(str_remove(names(p1), pattern= "%"))/100), as.numeric(p1), col="red")
+  #       # DHARMa::simulateResiduals(best_model, plot=TRUE)
+  #       u1 <- sapply(which(www$toiceland==1), function(x) pbinom(q=www$toiceland[x], size=1, prob=pred[x,2]))
+  #       u2 <- pbinom(q=www$to_norway[which(www$to_norway==1)], size=1, prob=pred[which(www$to_norway==1),3])
+  #       u3 <- pbinom(q=www$to_northsea[which(www$to_northsea==1)], size=1, prob=pred[which(www$to_northsea==1),1])
+  #       u <- c(u1,u2,u3)
+  #
+  #       u <- pbinom(q=www$toiceland, size=1, prob=pred[,2])
+  #       u <- pbinom(q=www$to_norway, size=1, prob=pred[,3])
+  #       u <- pbinom(q=www$to_northsea, size=1, prob=pred[,1])
+  #       hist(u)
+  #       qqnorm(qq)
+  #       qq <- qnorm(u)
+  #       range(qq)
+  #
+  #       table(apply(pred, 1, which.max), www$direction+1)
+  #       aa <- table(apply(predict(m1, type="response"), 1, which.max), www$direction+1); diag(aa) <- 0; sum(aa)
+  #       aa <- table(apply(predict(m2, type="response"), 1, which.max), www$direction+1); diag(aa) <- 0; sum(aa)
+  #       aa <- table(apply(predict(m4, type="response"), 1, which.max), www$direction+1); diag(aa) <- 0; sum(aa)
+  #       aa <- table(apply(predict(m5, type="response"), 1, which.max), www$direction+1); diag(aa) <- 0; sum(aa)
+  #       aa <- table(apply(predict(m6, type="response"), 1, which.max), www$direction+1); diag(aa) <- 0; sum(aa)
+  #       aa <- table(apply(predict(m7, type="response"), 1, which.max), www$direction+1); diag(aa) <- 0; sum(aa)
+  #       aa <- table(apply(predict(m8, type="response"), 1, which.max), www$direction+1); diag(aa) <- 0; sum(aa)
+  #
+
+  			### 10-fold cross-validation
+
+  			library(groupdata2)
+  			library(furrr)
+  			library(progressr)
+
+  			kfolding <- function(it, kfolds = 10, model_type="Iceland"){
+
+  			  set.seed(it)
+  			  ERRORS <- c()
+  			  AICs <- c()
+  			  BICs <- c()
+  			  if(model_type == "Iceland") www$y <- www$toiceland
+  			  if(model_type == "Norway") www$y <- www$to_norway
+  			  if(model_type == "Northsea") www$y <- www$to_northsea
+  			  www1 <- www %>% ungroup() %>% fold(k = kfolds, method="n_rand")
+
+  			  for (k in 1:kfolds){
+
+  			    testing <- www1[www1$.folds == k,]
+  			    training <- www1[-testing$ID,]
+
+  			    if (kfolds == 1) dat_use <- www
+  			    if (kfolds > 1) dat_use <- training
+
+  			    m0=m1=m2=m3=m4=NULL
+  			    m0 <- (gam(y ~  1, family=binomial,
+  			              data = dat_use))
+  			    m1 <- (gam(y ~  -1 + s(Latitude) + Catch_year  + s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
+  			              data = dat_use))
+  			    m2 <- (gam(y ~  -1 + s(Latitude) + Catch_year + s(Length, by=Catch_year) + s(julian_recapture_std_scaled, k=3), family=binomial,
+  			              data = dat_use))
+  			    m3 <- (gam(y ~  -1 + s(Latitude, by=Catch_year) + Catch_year + s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
+  			              data = dat_use))
+  			    m4 <- (gam(y ~  -1 + s(Latitude) + Catch_year  + s(Length) + s(julian_recapture_std_scaled, by=Catch_year), family=binomial,
+  			              data = dat_use))
+  			    mse0 = mse1 = mse2 = mse3 = mse4 = NA
+
+  			    if (is(m0) != "try-error")   pred0 <- predict(m0, type="response", newdata = testing)
+  			    if (is(m1) != "try-error")   pred1 <- predict(m1, type="response", newdata = testing)
+  			    if (is(m2) != "try-error")   pred2 <- predict(m2, type="response", newdata = testing)
+  			    if (is(m3) != "try-error")   pred3 <- predict(m3, type="response", newdata = testing)
+  			    if (is(m4) != "try-error")   pred4 <- predict(m4, type="response", newdata = testing)
+
+  			    tonum <- function(x) as.numeric(as.character(x))
+  			    obs <- tonum(testing$y)
+  			    if (is(m0) != "try-error")   mse0 <- mean(apply(pred0-obs, 1, function(x) sum(x^2)))
+  			    if (is(m1) != "try-error")   mse1 <- mean(apply(pred1-obs, 1, function(x) sum(x^2)))
+  			    if (is(m2) != "try-error")   mse2 <- mean(apply(pred2-obs, 1, function(x) sum(x^2)))
+  			    if (is(m3) != "try-error")   mse3 <- mean(apply(pred3-obs, 1, function(x) sum(x^2)))
+  			    if (is(m4) != "try-error")   mse4 <- mean(apply(pred4-obs, 1, function(x) sum(x^2)))
+
+  			    nAICs <- AIC(m0,m1,m2,m3,m4)
+  			    nBICs <- BIC(m0,m1,m2,m3,m4)
+  			    error <- c(mse0, mse1, mse2, mse3, mse4)
+  			    ERRORS <- rbind(ERRORS, error)
+  			    AICs <- rbind(AICs, nAICs)
+  			    BICs <- rbind(BICs, nBICs)
+  			  }
+
+  			  RESULT <- list(m0=m0,m1=m1,m2=m2,m3=m3,m4=m4,ERRORS=ERRORS, AICs=AICs, BICs=BICs)
+
+  			  if(kfolds == 1) return(RESULT)
+  			  if(kfolds > 1) return(ERRORS)
+  			}
+
+  			### Go to Iceland
+
+        if (model_type == "Iceland"){
+
+          main_iceland = kfolding(it=1, kfolds=1, model_type="Iceland")
+
+          CVs <- kfolding(it=1, kfolds = 10, model_type="Iceland")
+          apply(CVs, 2, mean, na.rm=T)
+          CVs <- kfolding(it=20, kfolds = 10, model_type="Iceland")
+          apply(CVs, 2, mean, na.rm=T)
+
+          main_iceland$AICs
+          concurvity(main_iceland$m1)
+          concurvity(main_iceland$m2)
+          concurvity(main_iceland$m3)
+          concurvity(main_iceland$m4)
+
+          library(DHARMa)
+          library(ggeffects)
+          par(mfrow=c(2,2))
+          plot.gam(main_iceland$m1, all.terms=T)
+          simul <- simulateResiduals(main_iceland$m1, plot=TRUE)
+          par(mfrow=c(2,2))
+          plot(www$Latitude, simul$scaledResiduals)
+          plot(www$Length, simul$scaledResiduals)
+          plot(www$julian_recapture_std, simul$scaledResiduals)
+          plot(www$Catch_year, simul$scaledResiduals)
+
+          mydf <- ggpredict(main_iceland$m1, terms = "Latitude", back.transform = FALSE)
+          ggplot(mydf, aes(x, predicted)) +
+            geom_line() +
+            geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1)
+  			}
+
+  			if (model_type == "Norway"){
+  			  main_norway = kfolding(it=1, kfolds=1, model_type="Norway")
+  			  main_norway$AICs
+  			  main_norway$BICs
+  			  concurvity(main_norway$m1)
+  			  concurvity(main_norway$m2)
+  			  concurvity(main_norway$m3)
+  			  concurvity(main_norway$m4)
+  			  library(DHARMa)
+  			  simul <- simulateResiduals(main_norway$m1, plot=TRUE)
+  			  par(mfrow=c(2,2))
+  			  plot.gam(main_norway$m1, all.terms=TRUE)
+
+  			  CVs <- kfolding(it=1, kfolds = 10, model_type="Norway")
+  			  apply(CVs, 2, mean, na.rm=T)
+  			  CVs <- kfolding(it=20, kfolds = 10, model_type="Norway")
+  			  apply(CVs, 2, mean, na.rm=T)
+
+          par(mfrow=c(2,2))
+  			  plot(www$Latitude, simul$scaledResiduals)
+  			  plot(www$Length, simul$scaledResiduals)
+  			  plot(www$julian_recapture_std, simul$scaledResiduals)
+  			  plot(www$Catch_year, simul$scaledResiduals)
+
+  			}
+
+  			if (model_type == "Northsea"){
+  			  main_northsea = kfolding(it=1, kfolds=1, model_type="Northsea")
+  			  main_northsea$AICs
+  			  main_northsea$BICs
+  			  concurvity(main_northsea$m1)
+  			  concurvity(main_northsea$m2)
+  			  concurvity(main_northsea$m3)
+  			  concurvity(main_northsea$m4)
+  			  library(DHARMa)
+  			  simul <- simulateResiduals(main_northsea$m1, plot=TRUE)
+  			  par(mfrow=c(2,2))
+  			  plot.gam(main_northsea$m1, all.terms=TRUE)
+
+  			  CVs <- kfolding(it=1, kfolds = 10, model_type="Northsea")
+  			  apply(CVs, 2, mean, na.rm=T)
+  			  CVs <- kfolding(it=20, kfolds = 10, model_type="Northsea")
+  			  apply(CVs, 2, mean, na.rm=T)
+
+  			  library(DHARMa)
+  			  par(mfrow=c(2,2))
+  			  simul <- simulateResiduals(main_northsea$m1, plot=TRUE)
+  			  par(mfrow=c(2,2))
+  			  plot(www$Latitude, simul$scaledResiduals)
+  			  plot(www$Length, simul$scaledResiduals)
+  			  plot(www$julian_recapture_std, simul$scaledResiduals)
+  			  plot(www$Catch_year, simul$scaledResiduals)
+  			}
   			AICs <- AIC(m1,m2,m4,m5,m6)
 
-  			# gam.check(m113)
-  			summary(m1)
-  			plot.gam(m1, residuals=TRUE, pch=19, cex=0.5, scale=0,pages = 1)
-  			plot.gam(m1, pch=19, cex=0.5, scale=0,pages = 1)
+  			if (best == "AIC") best_model <- list(m1,m2,m4,m5,m6)[[which(AICs == min(AICs))]]
+  			if (best == "Manual") best_model <- m1
+  			summary(best_model)
+  			plot.gam(best_model, residuals=TRUE, pch=19, cex=0.5, scale=0,pages = 1)
+  			plot.gam(best_model, pch=19, cex=0.5, scale=0,pages = 1)
   			# qq.gam(m1, rep = 0, level = 0.9, type = "deviance", rl.col = 2,  rep.col = "gray80", cex=3, s.rep=5000)
-  			qq.gam(m1, rep = 5000, level = 0.9, type = "deviance", rl.col = 2,  rep.col = "gray80", cex=3, s.rep=5000)
-  			# plot(DHARMa::simulateResiduals(m1),pch=".")
-  			dev.copy2pdf(file=paste0(getwd(), "/MS/figs/EW_mvt/resid_", label, ".pdf"), out.type="pdf")
+  			# p1 <- qq.gam(best_model, rep = 5000, level = 0.9, type = "deviance", rl.col = 2,  rep.col = "gray80", cex=3, s.rep=5000)
+  			# points(qnorm(as.numeric(str_remove(names(p1), pattern= "%"))/100), as.numeric(p1), col="red")
+  			plot(DHARMa::simulateResiduals(best_model),pch=".")
+  			dev.copy2pdf(file=paste0(getwd(), "/MS/figs/EW_mvt/resid_", label, model_type, data_origin, ".pdf"), out.type="pdf")
   			dev.off()
 
 
-  			www$res <- residuals(m1)
+  			www$res <- residuals(best_model, type="deviance")
   			p1 <- ggplot(www, aes(x=Length, y=res)) + geom_point() + geom_smooth() + theme_bw()
   			p2 <- ggplot(www, aes(x=Latitude, y=res)) + geom_point() + geom_smooth() + theme_bw()
   			p3 <- ggplot(www, aes(x=julian_release_std, y=res)) + geom_point() + geom_smooth() + theme_bw()
@@ -592,19 +815,32 @@
   			p6 <- ggplot(www, aes(x=factor(Release_timing_fact), y=res)) + geom_boxplot() + theme_bw()
 
   			p0 <- grid.arrange(p1,p2,p3,p4,p5,p6, nrow=3)
-  			ggsave(p0, file=paste0(getwd(), "/MS/figs/EW_mvt/residuals",label, ".pdf"),width=20, height=14, units="cm", dpi = 450)
+  			ggsave(p0, file=paste0(getwd(), "/MS/figs/EW_mvt/residuals",label, model_type, data_origin, ".pdf"),width=20, height=14, units="cm", dpi = 450)
 
 
-  			best_model <- list(m1,m2,m4,m5,m6)[[which(AICs == min(AICs))]]
 
   			# nsamp <- www %>% group_by(Release_timing_fact, toiceland_bin, .drop=FALSE) %>% summarize(n=n()) %>%
   			#   ungroup() %>% group_by(Release_timing_fact, .drop=FALSE) %>% mutate(n_tot=sum(n),
   			#                                            ntot = paste0("n=", n_tot, "(", n, ")")) %>%
   			#   filter(toiceland_bin == 1)
-  			nsamp <- www %>% group_by(toiceland_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			if (model_type == "Iceland"){
+  			  nsamp <- www %>% group_by(toiceland_bin, .drop=FALSE) %>% summarize(n=n()) %>%
   			  mutate(n_tot=sum(n),
   			         ntot = paste0("n=", n_tot, "(", n, ")")) %>%
   			  filter(toiceland_bin == 1)
+  			}
+  			if (model_type == "Norway"){
+  			    nsamp <- www %>% group_by(tonorway_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			  mutate(n_tot=sum(n),
+  			         ntot = paste0("n=", n_tot, "(", n, ")")) %>%
+  			  filter(tonorway_bin == 1)
+  			 }
+  			if (model_type == "Northsea"){
+  			    nsamp <- www %>% group_by(tonorthsea_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			  mutate(n_tot=sum(n),
+  			         ntot = paste0("n=", n_tot, "(", n, ")")) %>%
+  			  filter(tonorthsea_bin == 1)
+  			 }
 
   			pp <- visreg::visreg(best_model, "Latitude", plot=FALSE)
   			p0 <- ggplot(pp$fit, aes(x=Latitude, y=visregFit)) + geom_line() +
@@ -616,8 +852,14 @@
   			  theme(axis.title = element_text(size=13),
   			        axis.text = element_text(size=10),
   			        strip.text.x = element_text(size = 10))
-  			pp0 <- p0 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==0), aes(x=Latitude)) +
+  			if (model_type == "Iceland") pp0 <- p0 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==0), aes(x=Latitude)) +
   			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==1), aes(x=Latitude), col="red") +
+  			  geom_text(data=nsamp, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
+  			if (model_type == "Norway") pp0 <- p0 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorway_bin==0), aes(x=Latitude)) +
+  			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorway_bin==1), aes(x=Latitude), col="red") +
+  			  geom_text(data=nsamp, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
+  			if (model_type == "Northsea") pp0 <- p0 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorthsea_bin==0), aes(x=Latitude)) +
+  			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorthsea_bin==1), aes(x=Latitude), col="red") +
   			  geom_text(data=nsamp, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
 
   			# ggsave(pp0, file=paste0(getwd(), "/MS/figs/EW_mvt/Marginal_latitude_limit",label, ".pdf"),width=20, height=14, units="cm", dpi = 450)
@@ -628,20 +870,40 @@
   			  # facet_wrap(~Release_timing_fact, scales="free_y") + theme_bw() +
   			   theme_bw() +
   			  ylab("") +
-  			  xlab("Recapture date (Julian days)") +
+  			  xlab("Recapture date") +
   			  theme(axis.title = element_text(size=13),
   			        axis.text = element_text(size=10),
   			        strip.text.x = element_text(size = 10))
-  			pp1 <- p1 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==0), aes(x=julian_recapture_std_scaled)) +
+  			if (model_type == "Iceland") pp1 <- p1 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==0), aes(x=julian_recapture_std_scaled)) +
   			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==1), aes(x=julian_recapture_std_scaled), col="red") +
+  			  geom_text(data=nsamp, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
+  			if (model_type == "Norway") pp1 <- p1 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorway_bin==0), aes(x=julian_recapture_std_scaled)) +
+  			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorway_bin==1), aes(x=julian_recapture_std_scaled), col="red") +
+  			  geom_text(data=nsamp, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
+  			if (model_type == "Northsea") pp1 <- p1 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorthsea_bin==0), aes(x=julian_recapture_std_scaled)) +
+  			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorthsea_bin==1), aes(x=julian_recapture_std_scaled), col="red") +
   			  geom_text(data=nsamp, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
 
   			# ggsave(pp1, file=paste0(getwd(), "/MS/figs/EW_mvt/Marginal_latitude_limit",label, ".pdf"),width=20, height=14, units="cm", dpi = 450)
 
-  			nsamp_length <- www %>% group_by(Catch_year, toiceland_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			if (model_type == "Iceland"){
+  			  nsamp_length <- www %>% group_by(Catch_year, toiceland_bin, .drop=FALSE) %>% summarize(n=n()) %>%
   			  ungroup() %>% group_by(Catch_year, .drop=FALSE) %>% mutate(n_tot=sum(n),
   			                                                        ntot = paste0("n=", n_tot, "(", n, ")")) %>%
   			  filter(toiceland_bin == 1)
+  			}
+  			if (model_type == "Norway"){
+  			  nsamp_length <- www %>% group_by(Catch_year, tonorway_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			  ungroup() %>% group_by(Catch_year, .drop=FALSE) %>% mutate(n_tot=sum(n),
+  			                                                        ntot = paste0("n=", n_tot, "(", n, ")")) %>%
+  			  filter(tonorway_bin == 1)
+  			}
+  			if (model_type == "Northsea"){
+  			  nsamp_length <- www %>% group_by(Catch_year, tonorthsea_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			  ungroup() %>% group_by(Catch_year, .drop=FALSE) %>% mutate(n_tot=sum(n),
+  			                                                        ntot = paste0("n=", n_tot, "(", n, ")")) %>%
+  			  filter(tonorthsea_bin == 1)
+  			}
 
   			pp <- visreg::visreg(best_model, "Length", by ="Catch_year", plot=FALSE)
   			p2 <- ggplot(pp$fit, aes(x=Length, y=visregFit)) + geom_line() +
@@ -652,17 +914,69 @@
   			  theme(axis.title = element_text(size=13),
   			        axis.text = element_text(size=10),
   			        strip.text.x = element_text(size = 10))
-  			pp2 <- p2 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==0), aes(x=Length)) +
+  			if (model_type == "Iceland") pp2 <- p2 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==0), aes(x=Length)) +
   			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==1), aes(x=Length), col="red") +
   			  geom_text(data=nsamp_length, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
+  			if (model_type == "Norway") pp2 <- p2 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorway_bin==0), aes(x=Length)) +
+  			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorway_bin==1), aes(x=Length), col="red") +
+  			  geom_text(data=nsamp_length, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
+  			if (model_type == "Northsea") pp2 <- p2 + geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorthsea_bin==0), aes(x=Length)) +
+  			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorthsea_bin==1), aes(x=Length), col="red") +
+  			  geom_text(data=nsamp_length, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
 
-        ppp <- grid.arrange(pp0,pp1,pp2,layout_matrix=matrix(c(1,2,3), ncol=3, nrow=1), widths=c(1,1,2))
+  			if (model_type == "Iceland"){
+  			  nsamp_year <- www %>% group_by(Catch_year, toiceland_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			  ungroup() %>% group_by(Catch_year, .drop=FALSE) %>% mutate(n_tot=sum(n),
+  			                                                             ntot = paste0("n=", n_tot, "(", n, ")")) %>%
+  			  filter(toiceland_bin == 1)
+  			}
+  			if (model_type == "Norway"){
+  			  nsamp_year <- www %>% group_by(Catch_year, tonorway_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			  ungroup() %>% group_by(Catch_year, .drop=FALSE) %>% mutate(n_tot=sum(n),
+  			                                                             ntot = paste0("n=", n_tot, "(", n, ")")) %>%
+  			  filter(tonorway_bin == 1)
+  			}
+  			if (model_type == "Northsea"){
+  			  nsamp_year <- www %>% group_by(Catch_year, tonorthsea_bin, .drop=FALSE) %>% summarize(n=n()) %>%
+  			  ungroup() %>% group_by(Catch_year, .drop=FALSE) %>% mutate(n_tot=sum(n),
+  			                                                             ntot = paste0("n=", n_tot, "(", n, ")")) %>%
+  			  filter(tonorthsea_bin == 1)
+  			}
 
-        ggsave(ppp, file=paste0(getwd(), "/MS/figs/EW_mvt/Marginal_effects",label, ".pdf"),width=20, height=14, units="cm", dpi = 450)
+  	    pp <- visreg::visreg(best_model, "Catch_year", plot=FALSE)
+  			p3 <- ggplot(pp$fit, aes(x=Catch_year, y=visregFit)) + geom_point() +
+  			  geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
+  			  theme_bw() +
+  			  ylab("") +
+  			  xlab("Year") +
+  			  theme(axis.title = element_text(size=13),
+  			        axis.text = element_text(size=10),
+  			        strip.text.x = element_text(size = 10))
 
+        ppp <- grid.arrange(pp0,pp1,pp2,p3,layout_matrix=matrix(c(1,2,3,4,4,4), byrow=T, ncol=3, nrow=2), widths=c(1,1,2), heights=c(1,0.5))
+        ggsave(ppp, file=paste0(getwd(), "/MS/figs/EW_mvt/Marginal_effects",label, model_type, data_origin, ".pdf"),width=20, height=20, units="cm", dpi = 450)
 
-    }
+        return(ppp)
+  	  }
 
+  # same year recapture
+  	test1 <- run_directionality("Iceland", month=12, best="AIC", data_origin="0year")
+  	test2 <- run_directionality("Norway", month=12, best="AIC", data_origin="0year")
+  	test3 <- run_directionality("Northsea", month=12, best="AIC", data_origin="0year")
+    pall <- grid.arrange(test1,test2,test3, nrow=2)
+    ggsave(pall, file=paste0(getwd(), "/MS/figs/EW_mvt/all_year0_month12.pdf"),width=35, height=29, units="cm", dpi = 450)
+  # 1 year after recapture
+  	test1 <- run_directionality("Iceland", month=12, best="AIC", data_origin="1year")
+  	test2 <- run_directionality("Norway", month=12, best="AIC", data_origin="1year")
+  	test3 <- run_directionality("Northsea", month=12, best="AIC", data_origin="1year")
+    pall <- grid.arrange(test1,test2,test3, nrow=2)
+    ggsave(pall, file=paste0(getwd(), "/MS/figs/EW_mvt/all_year1_month12.pdf"),width=35, height=29, units="cm", dpi = 450)
+  # 2 year after recapture
+  	test1 <- run_directionality("Iceland", month=12, best="AIC", data_origin="2year")
+  	test2 <- run_directionality("Norway", month=12, best="AIC", data_origin="2year")
+  	test3 <- run_directionality("Northsea", month=12, best="AIC", data_origin="2year")
+    pall <- grid.arrange(test1,test2,test3, nrow=2)
+    ggsave(pall, file=paste0(getwd(), "/MS/figs/EW_mvt/all_year2_month12.pdf"),width=35, height=29, units="cm", dpi = 450)
 
 	## This makes me think that I might need to develop a changepoint model (with K components)
 			## I sometimes call it "mixture" model below but it is not a mixture model but a changepoint model
@@ -845,15 +1159,147 @@
 
   			ggplot(subset(Data_mackerel_use_Ireland_select, Release_year=2014), aes(x=Latitude, y=log_rate, col=julian_std)) + geom_point()
 
-  			map_area <- get_map(location= c(left = -35, bottom = 51, right = 21, top = 72))
-  			map_area <- get_map(location= c(left = -15, bottom = 51, right = -8, top = 55))
+  			# map_area <- get_map(location= c(left = -35, bottom = 51, right = 21, top = 72))
+  			# map_area <- get_map(location= c(left = -15, bottom = 51, right = -8, top = 55))
   			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=julian_recapture_std, pch=Tag_area)) +
   			 scale_color_viridis_c()
 
   			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=Longitude, y=Latitude), cex=0.1)
 
-  			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=log_rate, pch=Tag_area)) +
+  			ggplot(data=Data_mackerel_use_Ireland_select %>% filter(julian_recapture_std < 270)) +
+  			         geom_sf(data = Norway) + theme_bw() +
+  			  geom_jitter(aes(x=cLon, y=cLat, col=Length),size=1) +
+  			  scale_color_viridis_c(option="C")
+
+  			ggplot(data=Data_mackerel_use_Ireland_select %>%
+  			         filter(julian_recapture_std < 200)) +
+  			         geom_sf(data = Norway) + theme_bw() +
+  			  geom_jitter(aes(x=cLon, y=cLat, col=ID),size=1, width=0.1, height=0.1) +
+  			  geom_point(aes(x=Longitude, y=Latitude, col=ID),size=1) +
   			  scale_color_viridis_c()
+
+
+        datplot <- Data_mackerel_use_Ireland_select %>% filter(julian_recapture_std < 230)
+        datplot <- datplot %>% mutate(Recapture_timing = ifelse(julian_recapture_std < 200, "early",
+                                                                ifelse(julian_recapture_std >= 200 &julian_recapture_std < 210, "mid1",
+                                                                       ifelse(julian_recapture_std >= 210 &julian_recapture_std < 220, "mid2", "late"))))
+        datplot$Recapture_timing <- as.factor(datplot$Recapture_timing)
+        datplot$Recapture_timing <- factor(datplot$Recapture_timing, levels=c("early","mid1","mid2","late"))
+        datplot$Catch_year <- as.numeric(as.character(datplot$Catch_year))
+
+  			# Area effect on early recapture date
+  			table1 <- datplot %>% group_by(Tag_area, Recapture_timing) %>%
+  			  summarize(n=n(), duration=round(mean(duration),1), release = round(mean(julian_release_std),1))
+  			table1$Longitude = c(-18,-18,-18,-18,-20,-20,-20,-20)
+  			table1$Latitude= c(56.5,56.5,56.5,56.5,53,53,53,53)
+  			table1$label= apply(table1, 1, function(x) paste0("n=",x[3],"\n(",x[4],"days)"))
+
+  			label_names <-as_labeller(c(
+  			  'early'="Recapture <200 julian days",
+  			  'mid1'="Recapture [200;210) julian days",
+  			  'mid2'="Recapture [210;220) julian days",
+  			  'late'="Recapture [220;230) julian days"
+  			))
+
+  			g1 <- ggplot(data=datplot) +
+  			         geom_sf(data = Norway) + theme_bw() +
+  			  geom_jitter(aes(x=cLon, y=cLat, col=Catch_year, size=Catch_year), width=0.2, height=0.2, alpha=0.5) +
+  			  geom_jitter(aes(x=Longitude, y=Latitude, col=Catch_year, size=Catch_year), width=0.2, height=0.2, alpha=0.5) +
+  			  geom_label(data=table1, aes(x=Longitude, y=Latitude, label=label)) +
+  			  # geom_text(data=title, aes(x=x,y=y,label=label)) +
+  			  facet_wrap(~Recapture_timing, ncol=2, labeller= label_names) +
+  			  scale_color_viridis_c(name="Year", breaks=seq(2014, 2020, by=1)) +
+  			  scale_size_continuous(name = "Year", breaks=seq(2014, 2020, by=1), range=c(1,4)) +
+  			  labs(x="Longitude", y="Latitude")+
+  			  guides(color= guide_legend(), size=guide_legend()) +
+  			theme(axis.title = element_text(size=14),
+  			      axis.text = element_text(size=13),
+  			      text = element_text(size=12),
+  			      legend.title = element_text(size=15, hjust=0.5),
+  			      legend.text = element_text(size=13),
+  			      strip.text = element_text(size = 14),
+  			      plot.title = element_text(hjust = 0.5, size=17))
+
+  			  ggsave(g1, filename = "MS/figs/Recap/Iceland_recap.pdf",
+  			       width=10, height=8, units="in", dpi = 450)
+
+
+
+  			# Release timing effect on early recapture date
+  			table2 <- datplot %>% group_by(Release_timing, Recapture_timing) %>%
+  			  summarize(n=n(), duration=round(mean(duration),1), release = round(mean(julian_release_std),1),
+  			            mvt_rate = mean(log_rate))
+  			table2$Longitude = c(-24,-24,-24,-24,-24,-24,-24,-24)
+  			table2$Latitude= c(56.5,56.5,56.5,56.5,53,53,53,53)
+  			table2$label= apply(table2, 1, function(x) paste0(x[1]," n=",x[3],"\n(",x[4],"days)"))
+
+  			label_names <-as_labeller(c(
+  			  'early'="Recapture <200 julian days",
+  			  'mid1'="Recapture [200;210) julian days",
+  			  'mid2'="Recapture [210;220) julian days",
+  			  'late'="Recapture [220;230) julian days"
+  			))
+
+  			g2 <- ggplot(data=datplot) +
+  			         geom_sf(data = Norway) + theme_bw() +
+  			  geom_jitter(aes(x=cLon, y=cLat, col=Release_timing, size=Catch_year), width=0.2, height=0.2, alpha=0.5) +
+  			  geom_jitter(aes(x=Longitude, y=Latitude, col=Release_timing, size=Catch_year), width=0.2, height=0.2, alpha=0.5) +
+  			  geom_label(data=table2, aes(x=Longitude, y=Latitude, label=label)) +
+  			  # geom_text(data=title, aes(x=x,y=y,label=label)) +
+  			  facet_wrap(~Recapture_timing, ncol=2, labeller= label_names) +
+  			  # scale_color_viridis_c(name="Year", breaks=seq(2014, 2020, by=1)) +
+  			  scale_size_continuous(name = "Year", breaks=seq(2014, 2020, by=1), range=c(1,4)) +
+  			  labs(x="Longitude", y="Latitude")+
+  			  guides(color= guide_legend(), size=guide_legend()) +
+  			theme(axis.title = element_text(size=14),
+  			      axis.text = element_text(size=13),
+  			      text = element_text(size=12),
+  			      legend.title = element_text(size=15, hjust=0.5),
+  			      legend.text = element_text(size=13),
+  			      strip.text = element_text(size = 14),
+  			      plot.title = element_text(hjust = 0.5, size=17))
+
+  			  ggsave(g2, filename = "MS/figs/Recap/Iceland_recap_releasetiming.pdf",
+  			       width=10, height=8, units="in", dpi = 450)
+
+
+  			  # Mackerel size effect on early recapture date
+  			  table3 <- datplot %>% group_by(length_bin, Recapture_timing) %>%
+  			    summarize(n=n(), duration=round(mean(duration),1), release = round(mean(julian_release_std),1),
+  			              mvt_rate = mean(log_rate))
+  			  table3$Longitude = c(-24,-24,-24,-24,-24,-24,-24,-24,-24,-24,-24,-24)
+  			  table3$Latitude= c(59,59,59,59,56,56,56,56,53,53,53,53)
+  			  table3$label= apply(table3, 1, function(x) paste0(x[1]," n=",x[3],"\n(",x[4],"days)"))
+
+  			  label_names <-as_labeller(c(
+  			    'early'="Recapture <200 julian days",
+  			    'mid1'="Recapture [200;210) julian days",
+  			    'mid2'="Recapture [210;220) julian days",
+  			    'late'="Recapture [220;230) julian days"
+  			  ))
+
+  			  g3 <- ggplot(data=datplot) +
+  			    geom_sf(data = Norway) + theme_bw() +
+  			    geom_jitter(aes(x=cLon, y=cLat, col=length_bin, size=Catch_year), width=0.2, height=0.2, alpha=0.5) +
+  			    geom_jitter(aes(x=Longitude, y=Latitude, col=length_bin, size=Catch_year), width=0.2, height=0.2, alpha=0.5) +
+  			    geom_label(data=table3, aes(x=Longitude, y=Latitude, label=label)) +
+  			    # geom_text(data=title, aes(x=x,y=y,label=label)) +
+  			    facet_wrap(~Recapture_timing, ncol=2, labeller= label_names) +
+  			    # scale_color_viridis_c(name="Year", breaks=seq(2014, 2020, by=1)) +
+  			    scale_size_continuous(name = "Year", breaks=seq(2014, 2020, by=1), range=c(1,4)) +
+  			    labs(x="Longitude", y="Latitude")+
+  			    guides(color= guide_legend(), size=guide_legend()) +
+  			    theme(axis.title = element_text(size=14),
+  			          axis.text = element_text(size=13),
+  			          text = element_text(size=12),
+  			          legend.title = element_text(size=15, hjust=0.5),
+  			          legend.text = element_text(size=13),
+  			          strip.text = element_text(size = 14),
+  			          plot.title = element_text(hjust = 0.5, size=17))
+
+  			  ggsave(g3, filename = "MS/figs/Recap/Iceland_recap_fishsize.pdf",
+  			         width=10, height=8, units="in", dpi = 450)
+
 
   			ggmap(map_area) + geom_jitter(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat, col=duration, pch=Tag_area)) +
   			  scale_color_viridis_c()
@@ -1672,9 +2118,6 @@
 ############# Using the tagging data
 
 ############ Some nice plots to look at mark recapture pattern
-
-    Norway <- st_read("C:/Users/a23092/Documents/Projects/Shapefiles/ne_10m_land.shp")
-    Norway <- st_crop(Norway, c(xmin = -35, ymin = 51, xmax = 21, ymax = 73))
 
 
 		#### Ivestigate the effect of release timing on the pattern of mackerel distribution
