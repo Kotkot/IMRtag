@@ -1622,7 +1622,7 @@
 
   	Catch_data <- taggart::tg_catches(lower=T)
   	Mark_recap_data <- taggart::tg_expeditions(lower=T)
-  	d <- Mark_recap_data %>% filter(lubridate::year(releasedate) <2021)
+  	d <- Mark_recap_data %>% filter(lubridate::year(releasedate) <2021, lubridate::year(releasedate) >= 2014)
   	d <- filter(d,
   	            ices_rectangle %in% unique(d$ices_rectangle)[unlist(sapply(31:52, function(x) grep(x, unique(d$ices_rectangle))))])
 
@@ -1701,6 +1701,8 @@
   	new_sf <- ICESecoregion %>% filter(Ecoregion %in% c("Norwegian Sea", "Icelandic Waters", "Greater North Sea", "Celtic Seas")) %>%
   	  group_by(Ecoregion) %>% sfheaders::sf_remove_holes()
 
+
+
   	g1 <- ggplot(data=Norway) + geom_sf(col=grey(0.3)) +
   	  geom_sf(data = Bathy, aes(col=depth, fill=depth)) +
   	  scale_colour_manual(values=cc, name = "Depth") + scale_fill_manual(values=cc, name = "Depth") +
@@ -1709,8 +1711,8 @@
   	  geom_sf(data=new_sf, aes(geometry = geometry), col = "black", fill=NA, size=0.9) +
   	  geom_text(data = data.frame(x=c(-19,0,2.3,-12), y=c(62,68,56.5,55), label=c("Icelandic \nWaters", "Norwegian \nSea", "Greater \nNorth \nSea", "Celtic\nSeas")),
   	            aes(x=x, y=y, label=label), col="white", size=5, fontface=2) +
-  	  geom_point(data = df_rel %>% distinct(longitude,latitude),    aes(x = longitude, y = latitude), col = "red", size = .1)+
-  	  geom_point(data = recap_raw %>% distinct(clon,clat), aes(x = clon, y = clat), col = "#FEE724", size = .1)+
+  	  geom_point(data = df_rel %>% distinct(longitude,latitude),    aes(x = longitude, y = latitude), col = "red", alpha = 0.5, size = .5)+
+  	  geom_point(data = recap_raw %>% distinct(clon,clat), aes(x = clon, y = clat), col = "yellow", size = .6)+
   	  coord_sf(xlim=c(-31, 19), ylim=c(50, 70)) +
   	  labs(x="Longitude", y="Latitude") +
   	  theme_bw() + theme(plot.title = element_text(hjust = 0.5),
