@@ -6,4 +6,6 @@ src/*.o
 src/*.so
 src/*.dll
 R/old
-R/older
+R/old/*
+R/other
+R/other/*
