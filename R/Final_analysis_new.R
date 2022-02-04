@@ -133,7 +133,7 @@
 
 	### Need to make some geographical division of the data
 		South_Ireland <- unique(Data_mackerel_all$ICES_Rectangle)[unlist(sapply(31:36, function(x) grep(x, unique(Data_mackerel_all$ICES_Rectangle))))]
-		North_Ireland <- unique(Data_mackerel_all$ICES_Rectangle)[unlist(sapply(37:46, function(x) grep(x, unique(Data_mackerel_all$ICES_Rectangle))))]
+		North_Ireland <- unique(Data_mackerel_all$ICES_Rectangle)[unlist(sapply(37:52, function(x) grep(x, unique(Data_mackerel_all$ICES_Rectangle))))]
 		Bergen <- unique(Data_mackerel_all$ICES_Rectangle)[grep("F", unique(Data_mackerel_all$ICES_Rectangle))]
 		Iceland <- unique(Data_mackerel_all$ICES_Rectangle)[grep(58, unique(Data_mackerel_all$ICES_Rectangle))]
 		Data_mackerel_all <- Data_mackerel_all %>% mutate(Tag_area = ifelse(ICES_Rectangle %in% South_Ireland, "South_Ireland",
@@ -523,6 +523,9 @@
 
 	ggplot(Norway) + geom_sf() + geom_jitter(data=Data_mackerel_use_Ireland_select_origin, aes(x=cLon, y=cLat, col=factor(Catch_month))) +
 	  theme_bw() + facet_wrap(~Catch_year) + geom_hline(yintercept=62) + geom_vline(xintercept=-10)+ geom_vline(xintercept=-4, col="red")
+	ggplot(Norway) + geom_sf() + geom_jitter(data=Data_mackerel_use_Ireland_select_origin, aes(x=Longitude, y=Latitude, col=factor(Catch_month))) +
+	  theme_bw() + facet_wrap(~Catch_year) + geom_hline(yintercept=62) + geom_vline(xintercept=-10)+ geom_vline(xintercept=-4, col="red") +
+	  coord_sf(ylim=c(50, 60), xlim=c(-15,0))
 
 	kfolding <- function(it, kfolds = 10, model_type="Iceland", inputdata=www, ...){
 
@@ -548,19 +551,19 @@
 	               data = dat_use))
 	    m01 <- (gam(y ~  -1 + Release_year, family=binomial,
 	                data = dat_use))
-	    m02 <- (gam(y ~  -1 + Release_year+ s(Latitude), family=binomial,
+	    m02 <- (gam(y ~  -1 + Release_year+ s(Latitude,k=3), family=binomial,
 	                data = dat_use))
 	    m03 <- (gam(y ~  -1 + Release_year+ s(Length), family=binomial,
 	                data = dat_use))
 	    m04 <- (gam(y ~  -1 + Release_year+ s(julian_recapture_std_scaled, k=3), family=binomial,
 	                data = dat_use))
-	    m05 <- (gam(y ~  -1 + Release_year+ s(Latitude) + s(julian_recapture_std_scaled, k=3), family=binomial,
+	    m05 <- (gam(y ~  -1 + Release_year+ s(Latitude,k=3) + s(julian_recapture_std_scaled, k=3), family=binomial,
 	                data = dat_use))
 	    m06 <- (gam(y ~  -1 + Release_year+ s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
 	                data = dat_use))
-	    m07 <- (gam(y ~  -1 + Release_year+ s(Latitude) + s(Length), family=binomial,
+	    m07 <- (gam(y ~  -1 + Release_year+ s(Latitude,k=3) + s(Length), family=binomial,
 	                data = dat_use))
-	    if (month <= 12) m1 <- (gam(y ~  -1 + s(Latitude) + Release_year  + s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
+	    if (month <= 12) m1 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year  + s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
 	               data = dat_use))
 	    if (month > 12) m1 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year  + s(Length,k=3) + s(julian_recapture_std_scaled, k=3), family=binomial,
 	               data = dat_use))
@@ -570,9 +573,9 @@
 	    #            data = dat_use))
 	    # m4 <- (gam(y ~  -1 + s(Latitude) + Release_year  + s(Length) + s(julian_recapture_std_scaled, by=Release_year), family=binomial,
 	    #            data = dat_use))
-	    m2 <- (gam(y ~  -1 + s(Latitude) + Release_year + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
+	    m2 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
 	               data = dat_use))
-	    m3 <- (gam(y ~  -1 + s(Latitude) + Release_year + s(Length, k=3) + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
+	    m3 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year + s(Length, k=3) + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
 	               data = dat_use))
 	    m4 <- (gam(y ~  -1 + s(Latitude, by=length_bin) + s(Length, k=3) + Release_year + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
 	               data = dat_use))
@@ -619,7 +622,8 @@
 	  if(kfolds > 1) return(ERRORS)
 	}
 
-	run_directionality <- function(month, data_origin="cycle1", model_selection = "none", models=NULL, sensitivity=FALSE){
+	run_directionality <- function(month, data_origin="cycle1", model_selection = "none", models=NULL,
+	                               sensitivity=FALSE, scale = "response", alpha= 0.05){
   ## Doing the analysis of P(moving to ICES eco-regions)
   	  Limit_month <- month ## c(9,10,11)
       if (month == 9)   label <- "Sep30th"
@@ -915,7 +919,7 @@
 
         # Latitude effect
   			if (length(grep("Latitude", best_iceland$call))>0) {
-    			pp_IS <- visreg::visreg(fit=best_iceland, xvar="Latitude", plot=FALSE, data=main_iceland$data)
+    			pp_IS <- visreg::visreg(fit=best_iceland, xvar="Latitude", plot=FALSE, data=main_iceland$data, scale = scale, alpha = alpha)
     			p0_IS <- ggplot(pp_IS$fit, aes(x=Latitude, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -930,7 +934,7 @@
     			  #geom_text(data=nsamp_IS, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
   			} else { pp0_IS <- ggplot() + theme_void() }
         if (length(grep("Latitude", best_norway$call))>0) {
-          pp_NO <- visreg::visreg(best_norway, "Latitude", plot=FALSE, data=main_norway$data)
+          pp_NO <- visreg::visreg(best_norway, "Latitude", plot=FALSE, data=main_norway$data, scale = scale, alpha = alpha)
     			p0_NO <- ggplot(pp_NO$fit, aes(x=Latitude, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -946,7 +950,7 @@
     			  #geom_text(data=nsamp_NO, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
         } else { pp0_NO <- ggplot() + theme_void() }
   			if (length(grep("Latitude", best_northsea$call))>0) {
-    			pp_NS <- visreg::visreg(best_northsea, "Latitude", plot=FALSE, data=main_northsea$data)
+    			pp_NS <- visreg::visreg(best_northsea, "Latitude", plot=FALSE, data=main_northsea$data, scale = scale, alpha = alpha)
     			p0_NS <- ggplot(pp_NS$fit, aes(x=Latitude, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -959,11 +963,11 @@
   			} else {
   			  pp0_NS <- ggplot() + theme_void()
   			  if ( Limit_month <= 12 | sensitivity == TRUE) pp0_NS <- pp0_NS + labs(tag="Latitude (º)") + ggctrl3
-  			  if ( Limit_month > 12 & sensitivity == FALSE) pp0_NS <- pp0_NS + ggctrl4
+  			  if ( Limit_month > 12 & sensitivity == FALSE) pp0_NS <- pp0_NS + ggctr4
   			}
   			 if ( Limit_month > 12 & sensitivity == FALSE){
   			   if (length(grep("Latitude", best_ireland$call))>0) {
-  			     pp_IR <- visreg::visreg(best_ireland, "Latitude", plot=FALSE, data=main_ireland$data)
+  			     pp_IR <- visreg::visreg(best_ireland, "Latitude", plot=FALSE, data=main_ireland$data, scale = scale, alpha = alpha)
   			     p0_IR <- ggplot(pp_IR$fit, aes(x=Latitude, y=visregFit)) + geom_line() +
   			       geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
   			       theme_bw() +
@@ -986,7 +990,7 @@
 
         # Length effect
   			if (length(grep("Length", best_iceland$call))>0) {
-    			pp_IS <- visreg::visreg(best_iceland, "Length", plot=FALSE, data=main_iceland$data)
+    			pp_IS <- visreg::visreg(best_iceland, "Length", plot=FALSE, data=main_iceland$data, scale = scale, alpha = alpha)
     			p0_IS <- ggplot(pp_IS$fit, aes(x=Length, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -1001,7 +1005,7 @@
     			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(toiceland_bin==1), aes(x=Length), col="red")
   			} else { pp1_IS <- ggplot() + theme_void() }
         if (length(grep("Length", best_norway$call))>0) {
-    			pp_NO <- visreg::visreg(best_norway, "Length", plot=FALSE, data=main_norway$data)
+    			pp_NO <- visreg::visreg(best_norway, "Length", plot=FALSE, data=main_norway$data, scale = scale, alpha = alpha)
     			p0_NO <- ggplot(pp_NO$fit, aes(x=Length, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -1017,7 +1021,7 @@
     			  geom_rug(data=data.frame(www, visregFit=-Inf) %>% filter(tonorway_bin==1), aes(x=Length), col="red")
         } else { pp1_NO <- ggplot() + theme_void() }
   			if (length(grep("Length", best_northsea$call))>0) {
-    			pp_NS <- visreg::visreg(best_northsea, "Length", plot=FALSE, data=main_northsea$data)
+    			pp_NS <- visreg::visreg(best_northsea, "Length", plot=FALSE, data=main_northsea$data, scale = scale, alpha = alpha)
     			p0_NS <- ggplot(pp_NS$fit, aes(x=Length, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -1030,11 +1034,11 @@
   			} else {
   			  pp1_NS <- ggplot() + theme_void()
   			  if ( Limit_month <= 12 | sensitivity == TRUE) pp1_NS <- pp1_NS + labs(tag="Length (cm)") + ggctrl3
-  			  if ( Limit_month > 12 & sensitivity == FALSE) pp1_NS <- pp1_NS + ggctrl4
+  			  if ( Limit_month > 12 & sensitivity == FALSE) pp1_NS <- pp1_NS + ggctr4
          }
         if ( Limit_month > 12 & sensitivity == FALSE){
           if (length(grep("Length", best_ireland$call))>0) {
-            pp_IR <- visreg::visreg(best_ireland, "Length", plot=FALSE, data=main_ireland$data)
+            pp_IR <- visreg::visreg(best_ireland, "Length", plot=FALSE, data=main_ireland$data, scale = scale, alpha = alpha)
             p1_IR <- ggplot(pp_IR$fit, aes(x=Length, y=visregFit)) + geom_line() +
               geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
               theme_bw() +
@@ -1055,7 +1059,7 @@
 
         # Recapture date effect
   			if (length(grep("recapture", best_iceland$call))>0) {
-    			pp_IS <- visreg::visreg(best_iceland, "julian_recapture_std_scaled", plot=FALSE, data=main_iceland$data)
+    			pp_IS <- visreg::visreg(best_iceland, "julian_recapture_std_scaled", plot=FALSE, data=main_iceland$data, scale = scale, alpha = alpha)
     			p0_IS <- ggplot(pp_IS$fit, aes(x=julian_recapture_std_scaled, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -1071,7 +1075,7 @@
     			  #geom_text(data=nsamp_IS, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
   			} else { pp2_IS <- ggplot() + theme_void() }
         if (length(grep("recapture", best_norway$call))>0) {
-    			pp_NO <- visreg::visreg(best_norway, "julian_recapture_std_scaled", plot=FALSE, data=main_norway$data)
+    			pp_NO <- visreg::visreg(best_norway, "julian_recapture_std_scaled", plot=FALSE, data=main_norway$data, scale = scale, alpha = alpha)
     			p0_NO <- ggplot(pp_NO$fit, aes(x=julian_recapture_std_scaled, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw() +
@@ -1087,7 +1091,7 @@
     			  #geom_text(data=nsamp_NO, aes(x=-Inf, y=Inf, label=ntot), vjust=1.2, hjust=-0.1, size=3)
         } else { pp2_NO <- ggplot() + theme_void() }
   			if (length(grep("recapture", best_northsea$call))>0) {
-    			pp_NS <- visreg::visreg(best_northsea, "julian_recapture_std_scaled", plot=FALSE, data=main_northsea$data)
+    			pp_NS <- visreg::visreg(best_northsea, "julian_recapture_std_scaled", plot=FALSE, data=main_northsea$data, scale = scale, alpha = alpha)
     			p0_NS <- ggplot(pp_NS$fit, aes(x=julian_recapture_std_scaled, y=visregFit)) + geom_line() +
     			  geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
     			   theme_bw()+ labs(y="Marginal effects", x="Recapture date std")
@@ -1100,11 +1104,11 @@
   			} else {
   			  pp2_NS <- ggplot() + theme_void()
   			  if ( Limit_month <= 12 | sensitivity == TRUE) pp2_NS <- pp2_NS + labs(tag="Recapture date std") + ggctrl3
-  			  if ( Limit_month > 12 & sensitivity == FALSE) pp2_NS <- pp2_NS + ggctrl4
+  			  if ( Limit_month > 12 & sensitivity == FALSE) pp2_NS <- pp2_NS + ggctr4
   			}
         if ( Limit_month > 12 & sensitivity == FALSE){
           if (length(grep("julian_recapture_std_scaled", best_ireland$call))>0) {
-            pp_IR <- visreg::visreg(best_ireland, "julian_recapture_std_scaled", plot=FALSE, data=main_ireland$data)
+            pp_IR <- visreg::visreg(best_ireland, "julian_recapture_std_scaled", plot=FALSE, data=main_ireland$data, scale = scale, alpha = alpha)
             p1_IR <- ggplot(pp_IR$fit, aes(x=julian_recapture_std_scaled, y=visregFit)) + geom_line() +
               geom_ribbon(aes(ymin=visregLwr, ymax=visregUpr), fill=grey(0.5), alpha=0.3) +
               theme_bw() +
@@ -1143,7 +1147,7 @@
   			  filter(toireland_bin == 1)
 
    			  if (length(grep("Release_year", best_iceland$call))>0) {
-   			    pp <- visreg::visreg(best_iceland, "Release_year", plot=FALSE, data=main_iceland$data)
+   			    pp <- visreg::visreg(best_iceland, "Release_year", plot=FALSE, data=main_iceland$data, alpha = alpha)
       			pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
    			    pp3_IS <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
       			  geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
@@ -1163,7 +1167,7 @@
       			  #geom_text(data=dev_IS, aes(x=Inf, y=Inf, label=label), vjust=1.2, hjust=1.1, size=3)
    			  } else { pp3_IS <- ggplot() + theme_void() }
    			  if (length(grep("Release_year", best_norway$call))>0) {
-   			    pp <- visreg::visreg(best_norway, "Release_year", plot=FALSE, data=main_norway$data)
+   			    pp <- visreg::visreg(best_norway, "Release_year", plot=FALSE, data=main_norway$data, alpha = alpha)
    			    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
    			    pp3_NO <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
       			  geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
@@ -1184,7 +1188,7 @@
       			  #geom_text(data=dev_NO, aes(x=Inf, y=Inf, label=label), vjust=1.2, hjust=1.1, size=3)
    			  } else { pp3_NO <- ggplot() + theme_void() }
    			  if (length(grep("Release_year", best_northsea$call))>0) {
-   			    pp <- visreg::visreg(best_northsea, "Release_year", plot=FALSE, data=main_northsea$data)
+   			    pp <- visreg::visreg(best_northsea, "Release_year", plot=FALSE, data=main_northsea$data, alpha = alpha)
    			    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
    			    pp3_NS <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
        			  geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
@@ -1206,13 +1210,13 @@
    			  } else { pp3_NS <- ggplot() + theme_void() }
    			  if ( Limit_month > 12 & sensitivity == FALSE){
    			    if (length(grep("Release_year", best_ireland$call))>0) {
-   			      pp_IR <- visreg::visreg(best_ireland, "Release_year", plot=FALSE, data=main_ireland$data)
+   			      pp_IR <- visreg::visreg(best_ireland, "Release_year", plot=FALSE, data=main_ireland$data, alpha = alpha)
    			      pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
    			      pp3_IR <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
    			        geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
    			        theme_bw() +scale_x_discrete(drop=FALSE) +
    			        ylab("") +
-   			        xlab("") + labs(tag="P(Celtic Seas)") +
+   			        xlab("Year") + labs(tag="P(Celtic Seas)") +
    			        theme(axis.title = element_text(size=13),
    			              axis.text = element_text(size=10),
    			              axis.title.y=element_blank(),
@@ -1262,10 +1266,63 @@
       return(best_models)
   	}
 
+	ensureDHARMa1 <- function(simulationOutput,
+	                         convert = F){
+
+	  if(inherits(simulationOutput, "DHARMa")){
+	    return(simulationOutput)
+	  } else {
+
+	    if(convert == FALSE) stop("wrong argument to function, simulationOutput must be a DHARMa object!")
+	    else {
+
+	      if (class(simulationOutput)[1] %in% getPossibleModels()){
+	        if (convert == "Model" | convert == T) return(simulateResiduals(simulationOutput))
+	      } else if(is.vector(simulationOutput, mode = "numeric") & convert == T) {
+	        out = list()
+	        out$scaledResiduals = simulationOutput
+	        out$nObs = length(out$scaledResiduals)
+	        class(out) = "DHARMa"
+	        return(out)
+	      }
+	    }
+	  }
+	  stop("wrong argument to function, simulationOutput must be a DHARMa object or a numeric vector of quantile residuals!")
+	}
+	plotQQunif1 <- 	function (simulationOutput, testUniformity = T, testOutliers = T,
+	          testDispersion = T, main ="QQ plot residuals", ...)
+	{
+	  simulationOutput = ensureDHARMa1(simulationOutput, convert = "Model")
+	  gap::qqunif(simulationOutput$scaledResiduals, pch = 2, bty = "n",
+	              logscale = F, col = "black", cex = 0.6, main = main,
+	              cex.main = 1, ...)
+	  if (testUniformity == TRUE) {
+	    temp = testUniformity(simulationOutput, plot = F)
+	    legend("topleft", c(paste("KS test: p=", round(temp$p.value,
+	                                                   digits = 5)), paste("Deviation ", ifelse(temp$p.value <
+	                                                                                              0.05, "significant", "n.s."))), text.col = ifelse(temp$p.value <
+	                                                                                                                                                  0.05, "red", "black"), bty = "n")
+	  }
+	  if (testOutliers == TRUE) {
+	    temp = testOutliers(simulationOutput, plot = F)
+	    legend("bottomright", c(paste("Outlier test: p=", round(temp$p.value,
+	                                                            digits = 5)), paste("Deviation ", ifelse(temp$p.value <
+	                                                                                                       0.05, "significant", "n.s."))), text.col = ifelse(temp$p.value <
+	                                                                                                                                                           0.05, "red", "black"), bty = "n")
+	  }
+	  if (testDispersion == TRUE) {
+	    temp = testDispersion(simulationOutput, plot = F)
+	    legend("center", c(paste("Dispersion test: p=", round(temp$p.value,
+	                                                          digits = 5)), paste("Deviation ", ifelse(temp$p.value <
+	                                                                                                     0.05, "significant", "n.s."))), text.col = ifelse(temp$p.value <
+	                                                                                                                                                         0.05, "red", "black"), bty = "n")
+	  }
+	}
+
 	Resid_plot <- function(mod, dat, nsim=5000){
 	  simul <- simulateResiduals(mod, plot=FALSE, n=nsim)
-    par(mfrow=c(2,3), mar=c(4,3,1,0), oma=c(0,0,1,0))
-    plotQQunif(simul)
+    par(mfrow=c(2,3), mar=c(4,4,1,1), oma=c(0,1,1,0))
+    plotQQunif1(simul, main = "")
     dat$residuals <- simul$scaledResiduals
     dat$Release_year <- droplevels(dat$Release_year)
     plot(dat$Length, dat$residuals, xlab="Fish bodysize (cm)", ylab="Scaled residuals");# lines(dat$Length, predict(gam(residuals ~ s(Length), data=dat)))
@@ -1281,476 +1338,58 @@
 	}
 
 	# Main run
-  	Dec_0lag <- run_directionality(month=14, data_origin="cycle1", model_selection = "none", models=NULL)
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_0lag_IS.png"), res=400, width=12, height=10, units="cm")
+  	Dec_0lag <- run_directionality(month=14, data_origin="cycle1", model_selection = "none", models=NULL, scale = "linear", alpha = 0.05)
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_IS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_0lag[[1]][[9]], dat=Dec_0lag[[1]]$data)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_0lag_NO.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_NO.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_0lag[[2]][[9]], dat=Dec_0lag[[2]]$data)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_0lag_NS.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_NS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_0lag[[3]][[9]], dat=Dec_0lag[[3]]$data)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_0lag_IR.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_IR.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_0lag[[4]][[9]], dat=Dec_0lag[[4]]$data)
   	dev.off()
 
-  	Dec_1lag <- run_directionality(month=14, data_origin="cycle2", model_selection = "none", models=NULL)
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_1lag_IS.png"), res=400, width=12, height=10, units="cm")
-  	Resid_plot(mod=Dec_1lag[[1]][[9]], dat=Dec_1lag[[1]]$data)
+  	Dec_1lag <- run_directionality(month=14, data_origin="cycle2", model_selection = "none", models=NULL, scale = "linear")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_IS.png"), res=400, width=16, height=12, units="cm")
+  	Resid_plot(mod=Dec_1lag[[1]][[9]], dat=Dec_1lag[[1]]$data, nsim=499)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_1lag_NO.png"), res=400, width=12, height=10, units="cm")
-  	Resid_plot(mod=Dec_1lag[[2]][[9]], dat=Dec_1lag[[2]]$data)
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_NO.png"), res=400, width=16, height=12, units="cm")
+  	Resid_plot(mod=Dec_1lag[[2]][[9]], dat=Dec_1lag[[2]]$data, nsim=499)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_1lag_NS.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_NS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_1lag[[3]][[9]], dat=Dec_1lag[[3]]$data, nsim=5000)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_1lag_IR.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_IR.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_1lag[[4]][[9]], dat=Dec_1lag[[4]]$data, nsim=5000)
   	dev.off()
 
-  	Dec_2lag <- run_directionality(month=14, data_origin="cycle3", model_selection = "none", models=NULL)
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_2lag_IS.png"), res=400, width=12, height=10, units="cm")
+  	Dec_2lag <- run_directionality(month=14, data_origin="cycle3", model_selection = "none", models=NULL, scale = "linear")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_IS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_2lag[[1]][[9]], dat=Dec_2lag[[1]]$data)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_2lag_NO.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_NO.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_2lag[[2]][[9]], dat=Dec_2lag[[2]]$data)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_2lag_NS.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_NS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_2lag[[3]][[9]], dat=Dec_2lag[[3]]$data)
   	dev.off()
-  	png(filename=paste0(getwd(), "/MS/figs/SuppMatDec_2lag_IR.png"), res=400, width=12, height=10, units="cm")
+  	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_IR.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_2lag[[4]][[9]], dat=Dec_2lag[[4]]$data)
   	dev.off()
 
   # main models based on model selection
-  	Dec_1lag_AIC <- run_directionality(month=14, data_origin="cycle2", model_selection = "AIC", models=NULL)
-  	Dec_2lag_AIC <- run_directionality(month=14, data_origin="cycle3", model_selection = "AIC", models=NULL)
-  	Dec_0lag_AIC <- run_directionality(month=14, data_origin="cycle1", model_selection = "AIC", models=NULL)
+  	Dec_0lag_AIC <- run_directionality(month=14, data_origin="cycle1", model_selection = "AIC", models=NULL, scale = "linear")
+  	Dec_1lag_AIC <- run_directionality(month=14, data_origin="cycle2", model_selection = "AIC", models=NULL, scale = "linear")
+  	Dec_2lag_AIC <- run_directionality(month=14, data_origin="cycle3", model_selection = "AIC", models=NULL, scale = "linear")
 
 
 	# Sensitivity
-  	# Nov_0lag <- run_directionality(month=11, data_origin="cycle1", model_selection = "none", models=NULL)
-  	# Nov_1lag <- run_directionality(month=11, data_origin="cycle2", model_selection = "none", models=NULL)
-  	# Nov_2lag <- run_directionality(month=11, data_origin="cycle3", model_selection = "none", models=NULL)
-  	Jan_0lagb <- run_directionality(month=13, data_origin="cycle1", model_selection = "none", models=NULL, sensitivity = FALSE)
-  	Jan_1lagb <- run_directionality(month=13, data_origin="cycle2", model_selection = "none", models=NULL, sensitivity = FALSE)
-  	Jan_2lagb <- run_directionality(month=13, data_origin="cycle3", model_selection = "none", models=NULL, sensitivity = FALSE)
-
-
-##### Now doing some basic boxplots, etc for showing variability and tendency on mackerel length and latitude of release vs other covariates
-
-  	create_data <- function(month=14, data_origin="cycle1"){
-  	  Limit_month <- month ## c(9,10,11)
-  	  if (month == 9)   label <- "Sep30th"
-  	  if (month == 10)  label <- "Oct31st"
-  	  if (month == 11)  label <- "Nov30st"
-  	  if (month == 12)  label <- "Dec31st"
-  	  if (month == 13)  label <- "Jan31st"
-  	  if (month == 14)  label <- "Feb28th"
-
-  	  if (data_origin=="cycle1") { lag = "cycle 1"      ; year_lag = 0  }
-  	  if (data_origin=="cycle2") { lag = "cycle 2"  ; year_lag = 1  }
-  	  if (data_origin=="cycle3") { lag = "cycle 3"  ; year_lag = 2  }
-
-
-  	  # Full data
-  	  if (data_origin=="cycle1") data = Data_mackerel_use_Ireland_select_origin
-  	  if (data_origin=="cycle2") data = Data_mackerel_use_Ireland_select_origin_year1
-  	  if (data_origin=="cycle3") data = Data_mackerel_use_Ireland_select_origin_year2
-  	  data$month <- as.numeric(data$Catch_month)
-  	  Data_mackerel_use_Ireland_select <- subset(data, Release_year %in% 2014:2020) %>% filter(month <= Limit_month)
-
-  	  # Now calculating the intersection between recapture location and ICES ecoregions + tweaking because some points fall on land
-  	  Data_mackerel_use_Ireland_select_sf <- Data_mackerel_use_Ireland_select %>% st_as_sf(coords = c("cLon","cLat"), crs=4326) %>%
-  	    st_transform(new_proj)
-  	  Data_mackerel_use_Ireland_select$X <- st_coordinates(Data_mackerel_use_Ireland_select_sf)[,1]
-  	  Data_mackerel_use_Ireland_select$Y <- st_coordinates(Data_mackerel_use_Ireland_select_sf)[,2]
-  	  #
-  	  #   	      ggplot(ICESecoregion_cut_proj) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  	  #   	        geom_point(data=Data_mackerel_use_Ireland_select, aes(x=X, y=Y))
-  	  #   	      ggplot(ICESecoregion_cut) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  	  #   	        geom_point(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat))
-
-  	  intersection <- st_intersects(Data_mackerel_use_Ireland_select_sf, ICESecoregion_proj, sparse=FALSE)
-  	  area <- rep(NA, nrow(intersection))
-  	  for (i in 1:nrow(intersection)) { if (length(which(intersection[i,]==TRUE)>0)) area[i]= which(intersection[i,]==TRUE) }
-  	  # ggplot(ICESecoregion_cut) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  	  # geom_point(data=Data_mackerel_use_Ireland_select[which(is.na(area)==TRUE),], aes(x=cLon, y=cLat))
-  	  # a little adjustment of the area falling on land
-  	  area[which(is.na(area == TRUE) & (Data_mackerel_use_Ireland_select[, 'cLon'] == -1.5))] = 9
-  	  area[which(is.na(area == TRUE) & (Data_mackerel_use_Ireland_select[, 'cLon'] == 5.5))] = 11
-  	  # points falling in faroes but re-allocated to norway and iceland
-  	  area[which(area == 15 & Data_mackerel_use_Ireland_select$cLon > -5)] = 16
-  	  area[which(area == 15 & Data_mackerel_use_Ireland_select$cLon < -5)] = 13
-  	  Data_mackerel_use_Ireland_select$direction <- ICESecoregion_proj$Ecoregion[area]
-  	  # ggplot(ICESecoregion_cut_proj) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  	  #   geom_point(data=Data_mackerel_use_Ireland_select[which(is.na(area)==TRUE),], aes(x=X, y=Y))
-
-  	  Data_mackerel_use_Ireland_select$ID <- 1:nrow(Data_mackerel_use_Ireland_select)
-
-  	  # Rescaling parameters to ease interpretation
-  	  Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
-  	  Data_mackerel_use_Ireland_select$julian_recapture_standardized <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std, center=FALSE)
-  	  Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$Length)
-  	  Data_mackerel_use_Ireland_select$Latitude_scaled <- scale(Data_mackerel_use_Ireland_select$Latitude)
-  	  Data_mackerel_use_Ireland_select$Latitude2_scaled <- scale((Data_mackerel_use_Ireland_select$Latitude)^2)
-
-  	  Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select %>%
-  	    mutate(toiceland= ifelse(direction == "Icelandic Waters", 1, 0),
-  	           to_norway = ifelse(direction == "Norwegian Sea", 1, 0),
-  	           to_northsea = ifelse(direction == "Greater North Sea", 1, 0),
-  	           to_ireland = ifelse(direction == "Celtic Seas", 1, 0)
-  	    )
-
-  	  # Data_mackerel_use_Ireland_select %>% group_by(toiceland, Release_year) %>% summarize(n=n())
-  	  #
-  	  # Data_mackerel_use_Ireland_select %>% filter(toiceland == 1) %>% ggplot(aes(x=Latitude)) + geom_histogram()
-  	  #
-  	  #
-  	  # hist(Data_mackerel_use_Ireland_select$dist_toiceland, breaks=50, xlab="Distance from Norway coast (m)", main="")
-
-  	  ## Analysis of the EW movement
-  	  www <- Data_mackerel_use_Ireland_select
-  	  www <- www %>% mutate(group = paste0(Release_year, "_", Release_timing),
-  	                        group = as.factor(group),
-  	                        Release_timing_fact = as.factor(Release_timing),
-  	                        group = droplevels(group),
-  	                        Release_year = droplevels(Release_year),
-  	                        julian_recapture_std_scaled = scale(julian_recapture_std),
-  	                        julian_recapture_scaled = scale(julian_recapture),
-  	                        Latitude_scaled = scale(Latitude),
-  	                        Length_scaled = scale(Length),
-  	                        toiceland_bin = as.factor(toiceland),
-  	                        tonorway_bin = as.factor(to_norway),
-  	                        tonorthsea_bin = as.factor(to_northsea),
-  	                        toireland_bin = as.factor(to_ireland)
-  	  )  %>% ungroup() %>% dplyr::select(Release_year, Length, direction, Latitude, julian_release_std
-    	                                  )
-      www$cycle = lag
-
-      return(www)
-    }
-
-    lag0data <- create_data(month=14, data_origin="cycle1")
-    lag1data <- create_data(month=14, data_origin="cycle2")
-    lag2data <- create_data(month=14, data_origin="cycle3")
-
-    All_lags <- rbind(lag0data, lag1data, lag2data)
-    All_lags <- All_lags %>% filter(direction != "Greenland Sea")
-
-    library(corrplot)
-    corrplot(cor(All_lags), method="number")
-
-    glimpse(All_lags)
-    library(ranger)
-    All_lags <- All_lags
-    All_lags_new <- All_lags %>% mutate(direction = "All")
-    All_lags_full <- rbind(All_lags,All_lags_new ) %>% mutate(direction_short = as.factor(direction)) %>%
-      mutate(direction_short = recode_factor(direction_short, "All"="All", "Icelandic Waters" = "ICW", "Norwegian Sea"="NWS", "Greater North Sea"="GNS", "Celtic Seas"="CES"),
-             cycle = as.factor(cycle),
-             Release_year = as.factor(Release_year))
-    nsamp <- All_lags_full %>% group_by(direction_short,Release_year,cycle) %>% summarize(n = n()) %>%
-      mutate(nsamp = paste0("n=", n), Latitude=50)
-      # mutate(nsamp = paste0("n=", n), Latitude=ifelse(Release_year == 2020, 54, 60))
-      # mutate(nsamp = ifelse(n<5, "*", ""), Latitude= 54)
-
-    p1 <- All_lags_full %>% group_by(direction_short,Release_year,cycle) %>% mutate(mediany = median(Latitude)) %>%
-      ggplot(., aes(y= Latitude, x = direction_short)) +
-      geom_boxplot(aes(y= Latitude, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
-      # geom_violin(scale ="area") + #, outlier.color=grey(0.8), outlier.shape = 2) +
-      # geom_point(aes(x= direction_short, y=mediany), size=2) +
-      geom_text(data=nsamp, aes(y= Latitude, x = direction_short, label=n), angle=0, size=2.5) +
-      facet_grid(cycle ~ Release_year, scales="free_y") + theme_bw(18)+
-      theme(axis.text.x = element_text(angle = 90, size=11)) + scale_y_continuous(limits = c(50, NA)) +
-      ylab("Latitude (º)")
-    ggsave(p1, file="MS/Figs/Latitude_distribution_boxplot.pdf", width=12, height=8, dpi=450)
-
-    nsamp <- All_lags_full %>% group_by(direction_short,Release_year,cycle) %>% summarize(n = n()) %>%
-      mutate(nsamp = paste0("n=", n), Length = 25)
-      # mutate(nsamp = ifelse(n<5, "*", ""), Length= 42)
-    p2 <- All_lags_full %>% group_by(direction_short,Release_year,cycle) %>% mutate(lengthy = median(Length)) %>%
-      ggplot(.) +
-      geom_boxplot(aes(y= Length, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
-      # geom_violin(scale ="area", aes(y= Length, x = direction_short)) + #, outlier.color=grey(0.8), outlier.shape = 2) +
-      # geom_point(aes(x= direction_short, y=lengthy), size=2) +
-      geom_text(data=nsamp, aes(y= Length, x = direction_short, label=n), angle=0, size=2.5) +
-      facet_grid(cycle ~ Release_year, scales="free_y") + theme_bw(18)+
-      theme(axis.text.x = element_text(angle = 90, size=11)) + ylab("Length (cm)")
-    ggsave(p2, file="MS/Figs/Length_distribution_boxplot.pdf", width=12, height=8, dpi=450)
-
-
-    All_lags %>% group_by(direction_short,Release_year,cycle) %>%
-      summarise(mean = mean(Length), ymin=quantile(Length, 0.025), ymax=quantile(Length, 0.975)) %>%
-      ggplot(.) + geom_errorbar(aes(x=direction_short, ymin=ymin, ymax=ymax)) +
-      geom_point(aes(x= direction_short, y=mean), size=2) +
-      facet_grid(cycle ~ Release_year) + theme_bw(18)+ ylab("Length (cm)") +
-      theme(axis.text.x = element_text(angle = 90, size=9))
-
-    All_lags %>% group_by(direction_short,Release_year,cycle) %>%
-      summarise(n = n(), mean = mean(Length), sd=sd(Length)) %>% mutate(se = sd/sqrt(n), ymin = mean - 1.96*se, ymax= mean + 1.96*se) %>%
-      ggplot(.) + geom_errorbar(aes(x=direction_short, ymin=ymin, ymax=ymax)) +
-      geom_point(aes(x= direction_short, y=mean), size=2) +
-      facet_grid(cycle ~ Release_year) + theme_bw(18)+ ylab("Length (cm)") +
-      theme(axis.text.x = element_text(angle = 90, size=9))
-
-
-    glm1 <- ranger(Length ~ ., data=All_lags %>% dplyr::select(! c(Latitude, julian_release_std)), importance = "impurity")
-  	glm1 <- ranger(Length ~ ., data=All_lags %>% dplyr::select(! c(Latitude)), importance = "impurity", mtry=3, num.trees=10000)
-  	glm1 <- ranger(Length ~ ., data=All_lags %>% dplyr::select(! c(Latitude)), importance = "impurity", mtry=1, num.trees=10000)
-  	glm1 <- ranger(Length ~ ., data=All_lags, importance = "impurity")
-  	glm1b <- (lm(Length ~ cycle + direction * Release_year * julian_release_std, data=All_lags))
-  	DHARMa::simulateResiduals(glm1b, plot=TRUE)
-  	summary(glm1b)
-  	anova(glm1b)
-  	partial(glm1b, pred.var = "direction", plot=TRUE, rug=TRUE)
-  	partial(glm1b, pred.var = "cycle", plot=TRUE, rug=TRUE)
-  	partial(glm1b, pred.var = "Release_year", plot=TRUE, rug=TRUE)
-  	partial(glm1b, pred.var = c("direction", "Release_year"), plot=TRUE, chull = TRUE)
-
-  	library(pdp)
-  	library(vip)
-    vip(glm1, geom = "point", horizontal = TRUE)
-
-    p1 <- partial(glm1, pred.var = "direction", plot=TRUE, rug=TRUE)
-    p2 <- partial(glm1, pred.var = "cycle", plot=TRUE, rug=TRUE)  # Figure 2
-    p3 <- partial(glm1, pred.var = "Release_year", plot=TRUE, rug=TRUE)  # Figure 2
-    p4 <- partial(glm1, pred.var = "julian_release_std", plot=TRUE, rug=TRUE, smooth=TRUE)  # Figure 2
-    # p5 <- partial(glm1, pred.var = "julian_recapture_std", plot=TRUE, rug=TRUE, smooth=TRUE)  # Figure 2
-    # p6 <- partial(glm1, pred.var = c("julian_release_std", "julian_recapture_std"), plot=TRUE, chull = TRUE)
-    # p4 <- glm1 %>% partial(pred.var = "julian_release_std") %>% autoplot(smooth = TRUE, ylab = "yhat") +
-    #   theme_light()
-    pp1 <- grid.arrange(p3,p1,p2, ncol=2)
-    pp1 <- grid.arrange(p4, p3,p1,p2, ncol=2)
-    pp1 <- grid.arrange(p5,p4,p3,p1,p2, ncol=2)
-    glm1$r.squared
-
-    All_lags %>%
-      mutate(predicted = predict(glm1, All_lags)$predictions, res = Length - predicted) %>%
-      ggplot(aes(predicted, res)) +
-      geom_point(colour = "#ff6767", alpha = 0.3) +
-      labs(title = "Predicted and observed") +  theme_bw(18) + geom_abline(slope=0)
-
-    All_lags %>%
-      mutate(predicted = predict(glm1, All_lags)$predictions, res = Length - predicted) %>%
-      ggplot(aes(predicted, Length)) +
-      geom_point(colour = "#ff6767", alpha = 0.3) +
-      labs(title = "Predicted and observed") +  theme_bw(18) + geom_abline(slope=1)
-
-
-
-  	glm2 <- ranger(Latitude ~ ., data=All_lags %>% dplyr::select(! c(Length, julian_release_std)), importance = "impurity")
-  	glm2 <- ranger(Latitude ~ ., data=All_lags %>% dplyr::select(! c(Length)), importance = "impurity", mtry=3, num.trees=10000)
-  	glm2 <- ranger(Latitude ~ ., data=All_lags %>% dplyr::select(! c(Length)), importance = "impurity", mtry=2, num.trees=10000)
-  	glm2 <- ranger(Latitude ~ ., data=All_lags %>% dplyr::select(! c(Length)), importance = "impurity", mtry=1, num.trees=10000)
-  	glm2 <- ranger(Latitude ~ ., data=All_lags, importance = "impurity")
-  	glm2b <- (lm(Latitude ~ cycle + direction * Release_year, data=All_lags))
-  	# glm2b <- glm(Latitude ~ cycle + direction * Release_year, data=All_lags, family = gaussian(link="log"))
-  	DHARMa::simulateResiduals(glm2b, plot=TRUE)
-  	partial(glm2b, pred.var = "direction", plot=TRUE, rug=TRUE)
-  	partial(glm2b, pred.var = "cycle", plot=TRUE, rug=TRUE)
-  	partial(glm2b, pred.var = "Release_year", plot=TRUE, rug=TRUE)
-  	partial(glm2b, pred.var = c("direction", "Release_year"), plot=TRUE, chull = TRUE)
-  	summary(glm2b)
-  	anova(glm2b)
-
-
-  	glm2$prediction.error
-
-  	library(pdp)
-  	library(vip)
-
-    p1 <- partial(glm2, pred.var = "direction", plot=TRUE, rug=TRUE)
-    p2 <- partial(glm2, pred.var = "cycle", plot=TRUE, rug=TRUE)  # Figure 2
-    p3 <- partial(glm2, pred.var = "Release_year", plot=TRUE, rug=TRUE)  # Figure 2
-    p4 <- partial(glm2, pred.var = "julian_release_std", plot=TRUE, rug=TRUE, smooth=TRUE)  # Figure 2
-    # p4 <- glm2 %>% partial(pred.var = "julian_release_std") %>% autoplot(smooth = TRUE, ylab = "yhat") +
-    #   theme_light()
-    pp2 <- grid.arrange(p4, p3,p1,p2, ncol=2)
-    pp2 <- grid.arrange(p3,p1,p2, ncol=2)
-    glm2$r.squared
-
-    p4 <- partial(glm2, pred.var = c("direction", "cycle"), plot=TRUE, chull = TRUE)
-    p5 <- partial(glm2, pred.var = c("direction", "Release_year"), plot=TRUE, chull = TRUE)
-
-    All_lags %>%
-      mutate(predicted = predict(glm2, All_lags)$predictions) %>%
-      ggplot(aes(predicted, Latitude)) +
-      geom_point(colour = "#ff6767", alpha = 0.3) +
-      labs(title = "Predicted and observed") +  theme_bw(18) + geom_abline(slope=1)
-    All_lags %>%
-      mutate(predicted = predict(glm2, All_lags)$predictions, res = Latitude - predicted) %>%
-      ggplot(aes(predicted, res)) +
-      geom_point(colour = "#ff6767", alpha = 0.3) +
-      labs(title = "Predicted and observed") +  theme_bw(18) + geom_abline(slope=0)
-
-
-
-  # Variance partitioning
-  	b <- gam(y ~  1, family=binomial, data = Dec_0lag[[1]]$data)
-  	b0 <- Dec_0lag[[1]][[9]]
-  	b1 <- gam(y ~  -1 + s(Latitude), sp=b0$sp[1], family=binomial, data = Dec_0lag[[1]]$data)
-  	b2 <- gam(y ~  -1 + Catch_year, family=binomial, data = Dec_0lag[[1]]$data)
-  	b3 <- gam(y ~  -1 + s(Length), sp=b0$sp[2], family=binomial, data = Dec_0lag[[1]]$data)
-  	b4 <- gam(y ~  -1 + s(julian_recapture_std_scaled, k=3), sp=b0$sp[3], family=binomial, data = Dec_0lag[[1]]$data)
-    (deviance(b1)-deviance(b0))/deviance(b)
-    (deviance(b2)-deviance(b0))/deviance(b)
-    (deviance(b3)-deviance(b0))/deviance(b)
-    (deviance(b4)-deviance(b0))/deviance(b)
-
-  	with(Feb_0lag[[4]]$data, table(y, Catch_year))
-  	b1 <- gam(y ~  -1 + s(Latitude) + Catch_year + s(Length) + factor(month>12), family=binomial, data = Feb_0lag[[4]]$data)
-  	b1 <- gam(y ~  -1 + s(Latitude) + Catch_year + s(Length), family=binomial, data = Feb_0lag[[4]]$data)
-  	summary(b1)
-  	par(mfrow=c(2,2))
-  	plot.gam(b1, all.terms=T)
-
-
-
-
-
-  	# -----------------------------------------------------------------------
-  	# ---- Fig 1
-  	# -----------------------------------------------------------------------
-
-  	library(ggOceanMaps)
-  	library(sf)
-  	Norway <- st_read("shapefile/ne_10m_land.shp")
-  	Norway <- st_crop(Norway, c(xmin = -34, ymin = 49, xmax = 22, ymax = 72))
-
-  	dt <- data.frame(lon = c(-31, -31, 19, 19), lat = c(45, 70, 70, 45))
-
-  	Catch_data <- taggart::tg_catches(lower=T)
-  	Mark_recap_data <- taggart::tg_expeditions(lower=T)
-  	d <- Mark_recap_data %>% filter(lubridate::year(releasedate) <2021, lubridate::year(releasedate) >= 2014)
-  	d <- filter(d,
-  	            ices_rectangle %in% unique(d$ices_rectangle)[unlist(sapply(31:52, function(x) grep(x, unique(d$ices_rectangle))))])
-
-  	d <- filter(d,
-  	            !(ices_rectangle %in% unique(d$ices_rectangle)[unlist(sapply("F", function(x) grep(x, unique(d$ices_rectangle))))]))
-
-
-  	# Releases:
-  	df_rel <- d %>% filter(between(lubridate::year(releasedate),2014,2020))
-  	df_rel <- mutate(df_rel,
-  	                 iceslon =mapplots::ices.rect(ices_rectangle)$lon,
-  	                 iceslat = mapplots::ices.rect(ices_rectangle)$lat)
-
-
-  	# Recaptures:
-  	recap_raw <- df_rel %>% filter(!is.na(recapturedate)) %>%
-  	  left_join(Catch_data, by = "catchid") %>%
-  	  mutate(RecaptureYear = ifelse(lubridate::month(recapturedate)>2,
-  	                                lubridate::year(recapturedate),
-  	                                lubridate::year(recapturedate)-1),
-  	         ReleaseYear = lubridate::year(releasedate),
-  	         YearsOut = RecaptureYear - ReleaseYear) %>%
-  	  filter(YearsOut<3, between(ReleaseYear,2014,2020),
-  	         !is.na(ices_rectangle.y))
-
-
-  	nc_data <- nc_open("data/current.nc")
-  	nc_data <- nc_open("data/current_new.nc")
-
-  	print(nc_data)
-  	lon <- ncvar_get(nc_data, "longitude")
-  	length(lon)
-  	lat <- ncvar_get(nc_data, "latitude")
-  	length(lat)
-  	time <- ncvar_get(nc_data, "time")
-  	uo <- ncvar_get(nc_data, "uo")
-  	dim(uo)
-
-  	vo <- ncvar_get(nc_data, "vo")
-  	dim(vo)
-
-  	vo_df <- reshape2::melt(vo, varnames = c("lon", "lat", "time"), value.name = "NS_comp")
-  	vo_df$lon <- as.vector(lon)[match(vo_df$lon, unique(vo_df$lon))]
-  	vo_df$lat <- as.vector(lat)[match(vo_df$lat, unique(vo_df$lat))]
-  	vo_df$time <- as.vector(time)[match(vo_df$time, unique(vo_df$time))]
-  	uo_df <- reshape2::melt(uo, varnames = c("lon", "lat", "time"), value.name = "EW_comp")
-  	uo_df$lon <- as.vector(lon)[match(uo_df$lon, unique(uo_df$lon))]
-  	uo_df$lat <- as.vector(lat)[match(uo_df$lat, unique(uo_df$lat))]
-  	uo_df$time <- as.vector(time)[match(uo_df$time, unique(uo_df$time))]
-
-  	Dat <- vo_df
-  	Dat$EW_comp <- uo_df$EW_comp
-  	Dat$date <- as.POSIXct(Dat$time*3600, origin='1950-01-01 00:00:00', tz="GMT", format = "%Y-%m-%d")
-  	Dat$speed <- sqrt(Dat$EW_comp^2 + Dat$NS_comp^2)
-
-
-  	### May current data
-  	Current_data <- Dat %>% filter(time %in% c(564276, 573036, 581820, 590580, 599340, 608100, 616884))
-  	Current_data$Release_year <- (2014:2020)[match(Current_data$time, c(564276, 573036, 581820, 590580, 599340, 608100, 616884))]
-  	Current_data <- Current_data %>% filter(lat>51, lon<15, lat<68.5)
-
-  	survey <- Current_data %>% st_as_sf(crs = 4326, coords = c("lon", "lat"))
-  	surv_utm_coords <- st_coordinates(survey)
-  	Current_data$X <- surv_utm_coords[,1]
-  	Current_data$Y <- surv_utm_coords[,2]
-
-  	X <- basemap_data(limits = NULL, data = dt, shapefiles = NULL,
-  	                  bathymetry = TRUE, glaciers = FALSE, resolution = "low",
-  	                  lon.interval = NULL, lat.interval = NULL,
-  	                  rotate = FALSE, verbose = FALSE)
-
-  	Bathy <- X$shapefiles$bathy %>% st_as_sf(crs = 4326, coords = c("lon", "lat"))
-
-  	cc <- scales::seq_gradient_pal("lightblue1", "darkblue", "Lab")(seq(0,1,length.out=8))
-
-  	new_sf <- ICESecoregion %>% filter(Ecoregion %in% c("Norwegian Sea", "Icelandic Waters", "Greater North Sea", "Celtic Seas")) %>%
-  	  group_by(Ecoregion) %>% sfheaders::sf_remove_holes()
-
-
-
-  	g1 <- ggplot(data=Norway) + geom_sf(col=grey(0.3)) +
-  	  geom_sf(data = Bathy, aes(col=depth, fill=depth)) +
-  	  scale_colour_manual(values=cc, name = "Depth") + scale_fill_manual(values=cc, name = "Depth") +
-  	  geom_sf(data=Norway, col=grey(0.3)) +
-  	  # new_scale_color() +
-  	  geom_sf(data=new_sf, aes(geometry = geometry), col = "black", fill=NA, size=0.9) +
-  	  geom_text(data = data.frame(x=c(-19,0,2.3,-12), y=c(62,68,56.5,55), label=c("Icelandic \nWaters", "Norwegian \nSea", "Greater \nNorth \nSea", "Celtic\nSeas")),
-  	            aes(x=x, y=y, label=label), col="white", size=5, fontface=2) +
-  	  geom_point(data = df_rel %>% distinct(longitude,latitude),    aes(x = longitude, y = latitude), col = "red", alpha = 0.5, size = .5)+
-  	  geom_point(data = recap_raw %>% distinct(clon,clat), aes(x = clon, y = clat), col = "yellow", size = .6)+
-  	  coord_sf(xlim=c(-31, 19), ylim=c(50, 70)) +
-  	  labs(x="Longitude", y="Latitude") +
-  	  theme_bw() + theme(plot.title = element_text(hjust = 0.5),
-  	                     legend.title = element_text(face = "bold", size = 12),
-  	                     strip.background = element_rect(fill = "white"),
-  	                     strip.text = element_text(face ="bold", size = 14),
-  	                     axis.text = element_text(size =13),
-  	                     axis.title = element_text(size =14))
-  	#panel.spacing.x = unit(6.5, "mm"))+
-  	# ggsave(g1, filename = "MS/figs/Fig2_May_Current_bathym.pdf",
-  	#        width=28, height=32, units="cm", dpi = 450)
-  	#
-
-
-  	ggplot(data=Norway) + geom_sf(col=grey(0.3)) +
-    	  geom_sf(data=bla, aes(geometry = geometry, col=Ecoregion), fill=NA, size=2)
-
-
-  	g2 <- ggplot(data=Norway) + geom_sf(col=grey(0.3)) +
-  	  geom_sf(data = Bathy, aes(col=depth, fill=depth), show.legend = FALSE) +
-  	  scale_colour_manual(values=cc, name = "Depth") + scale_fill_manual(values=cc, name = "Depth") + geom_sf(data=Norway, col=grey(0.3)) +
-  	  coord_sf(xlim=c(-31, 19), ylim=c(50, 70)) +
-  	  new_scale_color() +
-  	  new_scale_fill() +
-  	  geom_segment(data = Current_data %>% filter(speed > 0.15, Release_year %in% c(2014, 2018)), aes(x=X, y=Y, xend = X + EW_comp*5, yend = Y + NS_comp*5, col=speed),
-  	               arrow = arrow(angle = 15, length = unit(0.03, "inches"), type = "closed"), alpha = 0.8, size=0.3) +
-  	  scale_color_gradient(low="lightpink1", high="darkred", name = "Current\nspeed (m/s)") +
-  	  facet_wrap(~ Release_year, ncol=2) + theme_bw() + theme(plot.title = element_text(hjust = 0.5),
-  	                     legend.title = element_text(face = "bold", size = 12),
-  	                     strip.background = element_rect(fill = "white"),
-  	                     strip.text = element_text(face ="bold", size = 14),
-  	                     axis.text = element_text(size =13),
-  	                     axis.title = element_text(size =14)) +
-  	  labs(x="Longitude", y="Latitude")
-
-
-  pp <- gridExtra::grid.arrange(g1, g2, nrow=2)
-  ggsave(pp, file="MS/Figs/Fig1.png", width=10, height=10, dpi=400)
+  	Jan_0lagb <- run_directionality(month=13, data_origin="cycle1", model_selection = "none", models=NULL, scale = "linear")
+  	Jan_1lagb <- run_directionality(month=13, data_origin="cycle2", model_selection = "none", models=NULL, scale = "linear")
+  	Jan_2lagb <- run_directionality(month=13, data_origin="cycle3", model_selection = "none", models=NULL, scale = "linear")
 
 
 
