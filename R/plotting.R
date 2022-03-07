@@ -233,7 +233,7 @@ ggsave(ppp, file=paste0(getwd(), "/MS/figs/Fig5.pdf"), width=16, height=10, dpi=
 ##' @return a ggplot object to produce fig 4
 ##' @export create_data
 ##'
-create_data <- function(month=14, data_origin="cycle1"){
+create_data <- function(month=14, data_origin="cycle1", tagregion ="Ireland"){
   Limit_month <- month ## c(9,10,11)
   if (month == 9)   label <- "Sep30th"
   if (month == 10)  label <- "Oct31st"
@@ -248,63 +248,72 @@ create_data <- function(month=14, data_origin="cycle1"){
 
 
   # Full data
-  if (data_origin=="cycle1") data = Data_mackerel_use_Ireland_select_origin
-  if (data_origin=="cycle2") data = Data_mackerel_use_Ireland_select_origin_year1
-  if (data_origin=="cycle3") data = Data_mackerel_use_Ireland_select_origin_year2
+  if (data_origin=="cycle1") {
+    if (tagregion == "Ireland") data = Data_mackerel_use_Ireland_select_origin
+    if (tagregion == "Iceland") data = Data_mackerel_use_Iceland_select_origin
+  }
+  if (data_origin=="cycle2") {
+    if (tagregion == "Ireland") data = Data_mackerel_use_Ireland_select_origin_year1
+    if (tagregion == "Iceland") data = Data_mackerel_use_Iceland_select_origin_year1
+  }
+  if (data_origin=="cycle3") {
+    if (tagregion == "Ireland") data = Data_mackerel_use_Ireland_select_origin_year2
+    if (tagregion == "Iceland") data = Data_mackerel_use_Iceland_select_origin_year2
+  }
   data$month <- as.numeric(data$Catch_month)
-  Data_mackerel_use_Ireland_select <- subset(data, Release_year %in% 2014:2020) %>% filter(month <= Limit_month)
+  Data_touse <- subset(data, Release_year %in% 2014:2020) %>% filter(month <= Limit_month)
 
   # Now calculating the intersection between recapture location and ICES ecoregions + tweaking because some points fall on land
-  Data_mackerel_use_Ireland_select_sf <- Data_mackerel_use_Ireland_select %>% st_as_sf(coords = c("cLon","cLat"), crs=4326) %>%
+  Data_touse_sf <- Data_touse %>% st_as_sf(coords = c("cLon","cLat"), crs=4326) %>%
     st_transform(new_proj)
-  Data_mackerel_use_Ireland_select$X <- st_coordinates(Data_mackerel_use_Ireland_select_sf)[,1]
-  Data_mackerel_use_Ireland_select$Y <- st_coordinates(Data_mackerel_use_Ireland_select_sf)[,2]
+  Data_touse$X <- st_coordinates(Data_touse_sf)[,1]
+  Data_touse$Y <- st_coordinates(Data_touse_sf)[,2]
   #
   #   	      ggplot(ICESecoregion_cut_proj) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  #   	        geom_point(data=Data_mackerel_use_Ireland_select, aes(x=X, y=Y))
+  #   	        geom_point(data=Data_touse, aes(x=X, y=Y))
   #   	      ggplot(ICESecoregion_cut) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  #   	        geom_point(data=Data_mackerel_use_Ireland_select, aes(x=cLon, y=cLat))
+  #   	        geom_point(data=Data_touse, aes(x=cLon, y=cLat))
 
-  intersection <- st_intersects(Data_mackerel_use_Ireland_select_sf, ICESecoregion_proj, sparse=FALSE)
+  intersection <- st_intersects(Data_touse_sf, ICESecoregion_proj, sparse=FALSE)
   area <- rep(NA, nrow(intersection))
   for (i in 1:nrow(intersection)) { if (length(which(intersection[i,]==TRUE)>0)) area[i]= which(intersection[i,]==TRUE) }
   # ggplot(ICESecoregion_cut) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  # geom_point(data=Data_mackerel_use_Ireland_select[which(is.na(area)==TRUE),], aes(x=cLon, y=cLat))
+  # geom_point(data=Data_touse[which(is.na(area)==TRUE),], aes(x=cLon, y=cLat))
   # a little adjustment of the area falling on land
-  area[which(is.na(area == TRUE) & (Data_mackerel_use_Ireland_select[, 'cLon'] == -1.5))] = 9
-  area[which(is.na(area == TRUE) & (Data_mackerel_use_Ireland_select[, 'cLon'] == 5.5))] = 11
+  area[which(is.na(area == TRUE) & (Data_touse[, 'cLon'] == -1.5))] = 9
+  area[which(is.na(area == TRUE) & (Data_touse[, 'cLon'] == 5.5))] = 11
   # points falling in faroes but re-allocated to norway and iceland
-  area[which(area == 15 & Data_mackerel_use_Ireland_select$cLon > -5)] = 16
-  area[which(area == 15 & Data_mackerel_use_Ireland_select$cLon < -5)] = 13
-  Data_mackerel_use_Ireland_select$direction <- ICESecoregion_proj$Ecoregion[area]
+  area[which(area == 15 & Data_touse$cLon > -5)] = 16
+  area[which(area == 15 & Data_touse$cLon < -5)] = 13
+  Data_touse$direction <- ICESecoregion_proj$Ecoregion[area]
   # ggplot(ICESecoregion_cut_proj) + geom_sf(aes(geometry = geometry, fill=Ecoregion)) +
-  #   geom_point(data=Data_mackerel_use_Ireland_select[which(is.na(area)==TRUE),], aes(x=X, y=Y))
+  #   geom_point(data=Data_touse[which(is.na(area)==TRUE),], aes(x=X, y=Y))
 
-  Data_mackerel_use_Ireland_select$ID <- 1:nrow(Data_mackerel_use_Ireland_select)
+  Data_touse$ID <- 1:nrow(Data_touse)
 
   # Rescaling parameters to ease interpretation
-  Data_mackerel_use_Ireland_select$julian_recapture_scaled <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std)
-  Data_mackerel_use_Ireland_select$julian_recapture_standardized <- scale(Data_mackerel_use_Ireland_select$julian_recapture_std, center=FALSE)
-  Data_mackerel_use_Ireland_select$length_scaled <- scale(Data_mackerel_use_Ireland_select$Length)
-  Data_mackerel_use_Ireland_select$Latitude_scaled <- scale(Data_mackerel_use_Ireland_select$Latitude)
-  Data_mackerel_use_Ireland_select$Latitude2_scaled <- scale((Data_mackerel_use_Ireland_select$Latitude)^2)
+  Data_touse$julian_recapture_scaled <- scale(Data_touse$julian_recapture_std)
+  Data_touse$julian_recapture_standardized <- scale(Data_touse$julian_recapture_std, center=FALSE)
+  Data_touse$length_scaled <- scale(Data_touse$Length)
+  Data_touse$Latitude_scaled <- scale(Data_touse$Latitude)
+  Data_touse$Latitude2_scaled <- scale((Data_touse$Latitude)^2)
 
-  Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select %>%
+  Data_touse <- Data_touse %>%
     mutate(toiceland= ifelse(direction == "Icelandic Waters", 1, 0),
            to_norway = ifelse(direction == "Norwegian Sea", 1, 0),
            to_northsea = ifelse(direction == "Greater North Sea", 1, 0),
            to_ireland = ifelse(direction == "Celtic Seas", 1, 0)
     )
 
-  # Data_mackerel_use_Ireland_select %>% group_by(toiceland, Release_year) %>% summarize(n=n())
+  # Data_touse %>% group_by(toiceland, Release_year) %>% summarize(n=n())
   #
-  # Data_mackerel_use_Ireland_select %>% filter(toiceland == 1) %>% ggplot(aes(x=Latitude)) + geom_histogram()
+  # Data_touse %>% filter(toiceland == 1) %>% ggplot(aes(x=Latitude)) + geom_histogram()
   #
   #
-  # hist(Data_mackerel_use_Ireland_select$dist_toiceland, breaks=50, xlab="Distance from Norway coast (m)", main="")
+  # hist(Data_touse$dist_toiceland, breaks=50, xlab="Distance from Norway coast (m)", main="")
 
   ## Analysis of the EW movement
-  www <- Data_mackerel_use_Ireland_select
+  www <- Data_touse
   www <- www %>% mutate(group = paste0(Release_year, "_", Release_timing),
                         group = as.factor(group),
                         Release_timing_fact = as.factor(Release_timing),
@@ -325,11 +334,16 @@ create_data <- function(month=14, data_origin="cycle1"){
   return(www)
 }
 
-lag0data <- create_data(month=14, data_origin="cycle1")
-lag1data <- create_data(month=14, data_origin="cycle2")
-lag2data <- create_data(month=14, data_origin="cycle3")
+lag0data <- create_data(month=14, data_origin="cycle1", tagregion ="Ireland")
+lag1data <- create_data(month=14, data_origin="cycle2", tagregion ="Ireland")
+lag2data <- create_data(month=14, data_origin="cycle3", tagregion ="Ireland")
+lag0data_IC <- create_data(month=14, data_origin="cycle1", tagregion ="Iceland")
+lag1data_IC <- create_data(month=14, data_origin="cycle2", tagregion ="Iceland")
+lag2data_IC <- create_data(month=14, data_origin="cycle3", tagregion ="Iceland")
 
-All_lags <- rbind(lag0data, lag1data, lag2data)
+Produce_plot <- function(data_cycle1=lag0data, data_cycle2=lag1data, data_cyle3=lag2data, plot_type = "both"){
+
+All_lags <- rbind(data_cycle1, data_cycle2, data_cyle3)
 All_lags <- All_lags %>% filter(direction != "Greenland Sea")
 All_lags_full <- rbind(All_lags, All_lags_new) %>% mutate(direction_short = as.factor(direction)) %>%
   filter(direction_short != "All") %>%
@@ -339,51 +353,130 @@ All_lags_full <- rbind(All_lags, All_lags_new) %>% mutate(direction_short = as.f
 
 All_lags_full <- All_lags_full %>% mutate(cycle = paste("Migration ", cycle))
 
+### Producing figure 4
 
-nsamp <- All_lags_full %>% group_by(cycle,direction_short) %>%
-  summarize(n = n(), mean = mean(Latitude), Latitude = 62) %>%
-  mutate(nsamp = paste0("n=", n))
+  p1 <- NULL
+  p2 <- NULL
 
-p1 <- All_lags_full %>% group_by(direction_short,cycle) %>% mutate(mediany = median(Latitude)) %>%
-  ggplot(., aes(y= Latitude, x = direction_short)) +
-  geom_boxplot(aes(y= Latitude, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
-  geom_text(data=nsamp, aes(y= Latitude, x = direction_short, label=nsamp), angle=0, size=4) +
-  scale_y_continuous(breaks=seq(52,64,by=4)) +
-  facet_grid(. ~ cycle, scales="free_y") + xlab("ICES ecoregion") +
-  theme(axis.text.x = element_text(angle = 90, size=11)) +
-  ylab("Latitude (º)") + theme_bw()+
-theme(axis.title = element_text(size=15), axis.text = element_text(size=12), strip.text.x = element_text(size = 15),
-      axis.title.x = element_blank(), strip.background = element_rect(fill="white", color="white"),
-      panel.grid.major.x = element_blank(),
-      panel.grid.major.y = element_line(linetype = "dashed"),
-      panel.grid.minor.y = element_blank())
+  if (plot_type %in% c("both", "Latitude")) {
+    nsamp <- All_lags_full %>% group_by(cycle,direction_short) %>%
+      summarize(n = n(), mean = mean(Latitude), Latitude = 62) %>%
+      mutate(nsamp = paste0("n=", n))
 
-dat <- ggplot_build(p1)$data[[1]] %>% mutate(cycle = nsamp$cycle, mean = nsamp$mean)
-p1 <- p1 + geom_segment(data=dat, aes(x=xmin, xend=xmax, y=mean, yend=mean), colour="red", size=1)
+    p1 <- All_lags_full %>% group_by(direction_short,cycle) %>% mutate(mediany = median(Latitude)) %>%
+      ggplot(., aes(y= Latitude, x = direction_short)) +
+      geom_boxplot(aes(y= Latitude, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
+      geom_text(data=nsamp, aes(y= Latitude, x = direction_short, label=nsamp), angle=0, size=4) +
+      scale_y_continuous(breaks=seq(52,64,by=4)) +
+      facet_grid(. ~ cycle, scales="free_y") + xlab("ICES ecoregion") +
+      theme(axis.text.x = element_text(angle = 90, size=11)) +
+      ylab("Latitude (º)") + theme_bw() +
+    theme(axis.title = element_text(size=15), axis.text = element_text(size=12), strip.text.x = element_text(size = 15),
+          axis.title.x = element_blank(), strip.background = element_rect(fill="white", color="white"),
+          panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(linetype = "dashed"),
+          panel.grid.minor.y = element_blank())
+
+    dat <- ggplot_build(p1)$data[[1]] %>% mutate(cycle = nsamp$cycle, mean = nsamp$mean)
+    p1 <- p1 + geom_segment(data=dat, aes(x=xmin, xend=xmax, y=mean, yend=mean), colour="red", size=1)
+
+  }
+
+  if (plot_type %in% c("both", "Length")) {
+    nsamp1 <- All_lags_full %>% group_by(cycle,direction_short) %>%
+      summarize(n = n(), mean = mean(Length), Length = 42.5) %>% mutate(nsamp = paste0("n=", n))
+
+    p2 <- All_lags_full %>% group_by(direction_short,cycle) %>% mutate(lengthy = median(Length)) %>%
+      ggplot(.) +
+      geom_boxplot(aes(y= Length, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
+      geom_text(data=nsamp1, aes(y= Length, x = direction_short, label=nsamp), angle=0, size=4) +
+      facet_grid(.  ~ cycle, scales="free_y") +
+      theme(axis.text.x = element_text(angle = 90, size=11)) + ylab("Length (cm)")  +
+      theme_bw() + coord_cartesian(ylim=c(30, 43)) +
+      theme(axis.title = element_text(size=15), axis.text = element_text(size=12),
+            axis.title.x = element_blank(),
+            strip.text = element_blank(),
+            panel.grid.major.x = element_blank(),
+            panel.grid.major.y = element_line(linetype = "dashed"),
+            panel.grid.minor.y = element_blank())
+
+    dat <- ggplot_build(p2)$data[[1]] %>% mutate(cycle = nsamp1$cycle, mean = nsamp1$mean)
+    p2 <- p2 + geom_segment(data=dat, aes(x=xmin, xend=xmax, y=mean, yend=mean), colour="red", size=1)
+
+  }
 
 
-nsamp1 <- All_lags_full %>% group_by(cycle,direction_short) %>%
-  summarize(n = n(), mean = mean(Length), Length = 42) %>% mutate(nsamp = paste0("n=", n))
+  return(list(p1, p2))
+}
 
-p2 <- All_lags_full %>% group_by(direction_short,cycle) %>% mutate(lengthy = median(Length)) %>%
-  ggplot(.) +
-  geom_boxplot(aes(y= Length, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
-  geom_text(data=nsamp1, aes(y= Length, x = direction_short, label=nsamp), angle=0, size=4) +
-  facet_grid(.  ~ cycle, scales="free_y") + xlab("ICES ecoregion") +
-  theme(axis.text.x = element_text(angle = 90, size=11)) + ylab("Length (cm)")  +
-  theme_bw() + coord_cartesian(ylim=c(29,42)) +
+
+
+  Ireland_boxplot <- Produce_plot(data_cycle1=lag0data, data_cycle2=lag1data, data_cyle3=lag2data, plot_type = "both")
+  Iceland_boxplot <- Produce_plot(data_cycle1=lag0data_IC, data_cycle2=lag1data_IC, data_cyle3=lag2data_IC, plot_type = "Length")
+
+  Ireland_boxplot[[1]] <- Ireland_boxplot[[1]] + labs(title="Recaptures from Celtic Seas experiments") +
+    theme(plot.title = element_text(size = 15, hjust = 0.5))
+
+  Iceland_boxplot[[2]] <- Iceland_boxplot[[2]] + labs(title="Recaptures from Icelandic Waters experiments") +
+    xlab("ICES ecoregion") +
+    theme(plot.title = element_text(size = 15, hjust = 0.5),
+          axis.title = element_text(size=15), axis.text = element_text(size=12),
+          strip.text = element_blank(),
+          panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(linetype = "dashed"),
+          panel.grid.minor.y = element_blank())
+
+
+  pp <- grid.arrange(Ireland_boxplot[[1]],Ireland_boxplot[[2]],Iceland_boxplot[[2]], nrow=3)
+
+  ggsave(pp, file="MS/Figs/Fig4new.pdf", width=8, height=10, dpi=400)
+
+
+### Producing figure S4
+  nsamp <- All_lags_full %>% group_by(cycle,direction_short,Release_year) %>%
+    summarize(n = n(), mean = mean(Latitude), min=min(Latitude), max=max(Latitude)) %>%
+    group_by(Release_year) %>%
+    mutate(nsamp = paste0("n=", n), Latitude = min(min) + 1.08*(max(max)-min(min)))
+
+  p1 <- All_lags_full %>% group_by(direction_short,cycle,Release_year) %>% mutate(mediany = median(Latitude)) %>%
+    ggplot(., aes(y= Latitude, x = direction_short)) +
+    geom_boxplot(aes(y= Latitude, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
+    geom_text(data=nsamp, aes(y= Latitude, x = direction_short, label=nsamp), angle=0, size=4) +
+    facet_grid(Release_year ~ cycle, scales="free_y") + xlab("ICES ecoregion") +
+    theme(axis.text.x = element_text(angle = 90, size=11)) +
+    ylab("Latitude (º)") + theme_bw()+
   theme(axis.title = element_text(size=15), axis.text = element_text(size=12),
-        strip.text = element_blank(),  panel.grid.major.x = element_blank(),
+        strip.text.x = element_text(size = 15),
+        # axis.title.x = element_blank(),
+        strip.background = element_rect(fill="white", color="white"),
+        panel.grid.major.x = element_blank(),
         panel.grid.major.y = element_line(linetype = "dashed"),
         panel.grid.minor.y = element_blank())
 
-dat <- ggplot_build(p2)$data[[1]] %>% mutate(cycle = nsamp1$cycle, mean = nsamp1$mean)
-p2 <- p2 + geom_segment(data=dat, aes(x=xmin, xend=xmax, y=mean, yend=mean), colour="red", size=1)
+  ggsave(p1, file="MS/Figs/FigS4A.pdf", width=8, height=10, dpi=400)
 
 
-pp <- grid.arrange(p1,p2,nrow=2)
+  nsamp1 <- All_lags_full %>% group_by(cycle,direction_short,Release_year) %>%
+    summarize(n = n(), mean = mean(Length), min=min(Length), max=max(Length)) %>%
+    group_by(Release_year) %>%
+    mutate(nsamp = paste0("n=", n), Length = min(min) + 1.08*(max(max)-min(min)))
 
-ggsave(pp, file="MS/Figs/Length_distribution_boxplot_summary.pdf", width=8, height=10, dpi=400)
+  p2 <- All_lags_full %>% group_by(direction_short,cycle) %>% mutate(lengthy = median(Length)) %>%
+    ggplot(.) +
+    geom_boxplot(aes(y= Length, x = direction_short), outlier.color=grey(0.8), outlier.shape = 2) +
+    geom_text(data=nsamp1, aes(y= Length, x = direction_short, label=nsamp), angle=0, size=4) +
+    facet_grid(Release_year  ~ cycle, scales="free_y") + xlab("ICES ecoregion") +
+    theme(axis.text.x = element_text(angle = 90, size=11)) + ylab("Length (cm)")  +
+    theme_bw() +
+    theme(axis.title = element_text(size=15),
+          axis.text = element_text(size=12),
+          strip.text.x = element_text(size = 15),
+          strip.background = element_rect(fill="white", color="white"),
+          panel.grid.major.x = element_blank(),
+          panel.grid.major.y = element_line(linetype = "dashed"),
+          panel.grid.minor.y = element_blank())
+
+  ggsave(p2, file="MS/Figs/FigS4B.pdf", width=8, height=10, dpi=400)
 
 
 

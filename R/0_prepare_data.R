@@ -118,6 +118,8 @@ Data_mackerel_final <- Data_mackerel_final %>% group_by(Release_year, Tag_area_l
 
 ### Focus on release around Ireland (not Iceland nor Bergen)
 Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("South_Ireland", "North_Ireland"))
+### Focus on release around Iceland (not Iceland nor Bergen)
+Data_mackerel_use_Iceland <- subset(Data_mackerel_final, Tag_area %in% c("Iceland"))
 
 ### Do some explanatory analysis to explore what is causing these patterns of residuals
 mean_tag_area <- Data_mackerel_use_Ireland_select %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
@@ -127,18 +129,37 @@ mean_diff_tag_area <- as.numeric(abs(mean_tag_area[1,2] - mean_tag_area[2,2]))
 ########## Preparing the final data from Ireland for the analysis
 
 Data_mackerel_use_Ireland1 <- Data_mackerel_use_Ireland
-Data_mackerel_use_Ireland1$Catch_month <- as.numeric(as.character(Data_mackerel_use_Ireland1$Catch_month))
-Data_mackerel_use_Ireland1$Catch_year <- as.numeric(as.character(Data_mackerel_use_Ireland1$Catch_year))
-Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(1,2)),'Catch_month'] <- Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(1,2)),'Catch_month'] + 12
-Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(13,14)),'Catch_year'] <- Data_mackerel_use_Ireland1[which(Data_mackerel_use_Ireland1$Catch_month %in% c(13,14)),'Catch_year'] - 1
 
-## Deriving data-frame for the 3 different migration cycles
-Data_mackerel_use_Ireland_select_origin <- Data_mackerel_use_Ireland1 %>%
-  filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year)), Release_year%in%2014:2020)
-Data_mackerel_use_Ireland_select_origin_year1 <- Data_mackerel_use_Ireland1 %>%
-  filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+1, Release_year%in%2014:2020)
-Data_mackerel_use_Ireland_select_origin_year2 <- Data_mackerel_use_Ireland1 %>%
-  filter(Catch_month %in% c(7:14),  as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+2, Release_year%in%2014:2020)
-Data_mackerel_use_Ireland_select_origin$Catch_year <- as.factor(Data_mackerel_use_Ireland_select_origin$Catch_year)
-Data_mackerel_use_Ireland_select_origin_year1$Catch_year <- as.factor(Data_mackerel_use_Ireland_select_origin_year1$Catch_year)
-Data_mackerel_use_Ireland_select_origin_year2$Catch_year <- as.factor(Data_mackerel_use_Ireland_select_origin_year2$Catch_year)
+Adding_var <- function(data = Data_mackerel_use_Ireland) {
+  data$Catch_month <- as.numeric(as.character(data$Catch_month))
+  data$Catch_year <- as.numeric(as.character(data$Catch_year))
+  data[which(data$Catch_month %in% c(1,2)),'Catch_month'] <- data[which(data$Catch_month %in% c(1,2)),'Catch_month'] + 12
+  data[which(data$Catch_month %in% c(13,14)),'Catch_year'] <- data[which(data$Catch_month %in% c(13,14)),'Catch_year'] - 1
+
+  ## Deriving data-frame for the 3 different migration cycles
+  out1 <- data %>%
+    filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year)), Release_year%in%2014:2020)
+  out2 <- data %>%
+    filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+1, Release_year%in%2014:2020)
+  out3 <- data %>%
+    filter(Catch_month %in% c(7:14),  as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+2, Release_year%in%2014:2020)
+  out1$Catch_year <- as.factor(out1$Catch_year)
+  out2$Catch_year <- as.factor(out2$Catch_year)
+  out3$Catch_year <- as.factor(out3$Catch_year)
+
+  return(list(out1,out2,out3))
+
+}
+
+
+bla <- Adding_var(data = Data_mackerel_use_Ireland)
+Data_mackerel_use_Ireland_select_origin <- bla[[1]]
+Data_mackerel_use_Ireland_select_origin_year1 <- bla[[2]]
+Data_mackerel_use_Ireland_select_origin_year2 <- bla[[3]]
+
+
+bla <- Adding_var(data = Data_mackerel_use_Iceland)
+Data_mackerel_use_Iceland_select_origin <- bla[[1]]
+Data_mackerel_use_Iceland_select_origin_year1 <- bla[[2]]
+Data_mackerel_use_Iceland_select_origin_year2 <- bla[[3]]
+
