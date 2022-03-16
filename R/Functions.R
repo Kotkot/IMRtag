@@ -114,7 +114,7 @@ kfolding <- function(it, kfolds = 10, model_type="Iceland", inputdata=www, ...){
 ##' @export run_directionality
 ##'
 run_directionality <- function(month, data_origin="cycle1", model_selection = "none",
-                               sensitivity=FALSE, scale = "response", alpha= 0.05){
+                               sensitivity=FALSE, scale = "response", alpha= 0.05, adjust_ecoregion = FALSE){
   ## Doing the analysis of P(moving to ICES eco-regions)
   Limit_month <- month ## c(9,10,11)
   if (month == 9)   label <- "Sep30th"
@@ -161,12 +161,21 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
   Data_mackerel_use_Ireland_select$Latitude_scaled <- scale(Data_mackerel_use_Ireland_select$Latitude)
   Data_mackerel_use_Ireland_select$Latitude2_scaled <- scale((Data_mackerel_use_Ireland_select$Latitude)^2)
 
+  ##Adjustment of the directionality
+  if (adjust_ecoregion == TRUE) {
+    Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select %>%
+    mutate(direction= ifelse((direction == "Celtic Seas" & cLat>62), "Norwegian Sea", direction))
+  }
+
+
+  ## Creating binary response variable
   Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select %>%
     mutate(toiceland= ifelse(direction == "Icelandic Waters", 1, 0),
            to_norway = ifelse(direction == "Norwegian Sea", 1, 0),
            to_northsea = ifelse(direction == "Greater North Sea", 1, 0),
            to_ireland = ifelse(direction == "Celtic Seas", 1, 0)
     )
+
 
 
   ## Analysis of the movement directionality

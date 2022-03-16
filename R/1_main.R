@@ -56,6 +56,7 @@
   ggplot(ICESecoregion_cut_proj) + geom_sf(aes(geometry = geometry, fill=Ecoregion))
 
 #### Now load the data for the analysis
+  cutoff_months = c(6:14)
   source("R/0_prepare_data.R")
 
 #### Some plotting of the data
@@ -69,7 +70,7 @@
   source("R/Functions.R")
 
 #### Then run the analysis
-    Dec_0lag <- run_directionality(month=14, data_origin="cycle1", model_selection = "none", models=NULL, scale = "linear", alpha = 0.05)
+    Dec_0lag <- run_directionality(month=14, data_origin="cycle1", model_selection = "none", scale = "linear", alpha = 0.05)
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_IS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_0lag[[1]][[9]], dat=Dec_0lag[[1]]$data)
   	dev.off()
@@ -83,7 +84,7 @@
   	Resid_plot(mod=Dec_0lag[[4]][[9]], dat=Dec_0lag[[4]]$data)
   	dev.off()
 
-  	Dec_1lag <- run_directionality(month=14, data_origin="cycle2", model_selection = "none", models=NULL, scale = "linear")
+  	Dec_1lag <- run_directionality(month=14, data_origin="cycle2", model_selection = "none", scale = "linear")
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_IS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_1lag[[1]][[9]], dat=Dec_1lag[[1]]$data, nsim=499)
   	dev.off()
@@ -97,7 +98,7 @@
   	Resid_plot(mod=Dec_1lag[[4]][[9]], dat=Dec_1lag[[4]]$data, nsim=5000)
   	dev.off()
 
-  	Dec_2lag <- run_directionality(month=14, data_origin="cycle3", model_selection = "none", models=NULL, scale = "linear")
+  	Dec_2lag <- run_directionality(month=14, data_origin="cycle3", model_selection = "none",scale = "linear")
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_IS.png"), res=400, width=16, height=12, units="cm")
   	Resid_plot(mod=Dec_2lag[[1]][[9]], dat=Dec_2lag[[1]]$data)
   	dev.off()
@@ -112,15 +113,15 @@
   	dev.off()
 
   # main models based on model selection
-  	Dec_0lag_AIC <- run_directionality(month=14, data_origin="cycle1", model_selection = "AIC", models=NULL, scale = "linear")
-  	Dec_1lag_AIC <- run_directionality(month=14, data_origin="cycle2", model_selection = "AIC", models=NULL, scale = "linear")
-  	Dec_2lag_AIC <- run_directionality(month=14, data_origin="cycle3", model_selection = "AIC", models=NULL, scale = "linear")
+  	Dec_0lag_AIC <- run_directionality(month=14, data_origin="cycle1", model_selection = "AIC",  scale = "linear")
+  	Dec_1lag_AIC <- run_directionality(month=14, data_origin="cycle2", model_selection = "AIC",  scale = "linear")
+  	Dec_2lag_AIC <- run_directionality(month=14, data_origin="cycle3", model_selection = "AIC",  scale = "linear")
 
 
 	# Sensitivity
-  	Jan_0lagb <- run_directionality(month=13, data_origin="cycle1", model_selection = "none", models=NULL, scale = "linear")
-  	Jan_1lagb <- run_directionality(month=13, data_origin="cycle2", model_selection = "none", models=NULL, scale = "linear")
-  	Jan_2lagb <- run_directionality(month=13, data_origin="cycle3", model_selection = "none", models=NULL, scale = "linear")
+  	Jan_0lagb <- run_directionality(month=13, data_origin="cycle1", model_selection = "none", scale = "linear")
+  	Jan_1lagb <- run_directionality(month=13, data_origin="cycle2", model_selection = "none", scale = "linear")
+  	Jan_2lagb <- run_directionality(month=13, data_origin="cycle3", model_selection = "none", scale = "linear")
 
 
 

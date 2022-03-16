@@ -1,3 +1,9 @@
+#### Reminder for some setting to check when sourcing this:
+#### 1. The recapture month of interest: 6-14  (or 7-14)
+####
+
+
+
 #### Downloading data and checking it
 #	tg_catches()         %>% glimpse()
 #	tg_catches_bio()     %>% glimpse()
@@ -128,8 +134,6 @@ mean_diff_tag_area <- as.numeric(abs(mean_tag_area[1,2] - mean_tag_area[2,2]))
 
 ########## Preparing the final data from Ireland for the analysis
 
-Data_mackerel_use_Ireland1 <- Data_mackerel_use_Ireland
-
 Adding_var <- function(data = Data_mackerel_use_Ireland) {
   data$Catch_month <- as.numeric(as.character(data$Catch_month))
   data$Catch_year <- as.numeric(as.character(data$Catch_year))
@@ -138,11 +142,11 @@ Adding_var <- function(data = Data_mackerel_use_Ireland) {
 
   ## Deriving data-frame for the 3 different migration cycles
   out1 <- data %>%
-    filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year)), Release_year%in%2014:2020)
+    filter(Catch_month %in% cutoff_months, as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year)), Release_year%in%2014:2020)
   out2 <- data %>%
-    filter(Catch_month %in% c(7:14), as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+1, Release_year%in%2014:2020)
+    filter(Catch_month %in% cutoff_months, as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+1, Release_year%in%2014:2020)
   out3 <- data %>%
-    filter(Catch_month %in% c(7:14),  as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+2, Release_year%in%2014:2020)
+    filter(Catch_month %in% cutoff_months,  as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+2, Release_year%in%2014:2020)
   out1$Catch_year <- as.factor(out1$Catch_year)
   out2$Catch_year <- as.factor(out2$Catch_year)
   out3$Catch_year <- as.factor(out3$Catch_year)
