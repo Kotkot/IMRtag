@@ -7,7 +7,7 @@
 ##' @return a list containing the fitted model objects, their AIC, BIC, and MSE values, and the data
 ##' @export kfolding
 ##'
-kfolding <- function(it, kfolds = 10, model_type="Iceland", inputdata=www, ...){
+kfolding <- function(it, kfolds = 10, model_type="Iceland", inputdata=www, month=month, weighting=weighting, data_origin=data_origin, ...){
 
   set.seed(it)
   ERRORS <- c()
@@ -27,26 +27,31 @@ kfolding <- function(it, kfolds = 10, model_type="Iceland", inputdata=www, ...){
 
     if (kfolds > 1) dat_use <- training
 
+    if (weighting == TRUE) dat_use <- dat_use %>% group_by(Catch_year) %>% mutate(n=n(), wgts = 1/n) %>% ungroup() %>% mutate(wgts = wgts/mean(wgts))
+    if (weighting == FALSE) dat_use$wgts = 1
+
     m0 <- (gam(y ~  1, family=binomial,
-               data = dat_use))
+               data = dat_use, weights = wgts))
     m01 <- (gam(y ~  -1 + Release_year, family=binomial,
-                data = dat_use))
+                data = dat_use, weights = wgts))
     m02 <- (gam(y ~  -1 + Release_year+ s(Latitude,k=3), family=binomial,
-                data = dat_use))
+                data = dat_use, weights = wgts))
     m03 <- (gam(y ~  -1 + Release_year+ s(Length), family=binomial,
-                data = dat_use))
+                data = dat_use, weights = wgts))
     m04 <- (gam(y ~  -1 + Release_year+ s(julian_recapture_std_scaled, k=3), family=binomial,
-                data = dat_use))
+                data = dat_use, weights = wgts))
     m05 <- (gam(y ~  -1 + Release_year+ s(Latitude,k=3) + s(julian_recapture_std_scaled, k=3), family=binomial,
-                data = dat_use))
+                data = dat_use, weights = wgts))
     m06 <- (gam(y ~  -1 + Release_year+ s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
-                data = dat_use))
+                data = dat_use, weights = wgts))
     m07 <- (gam(y ~  -1 + Release_year+ s(Latitude,k=3) + s(Length), family=binomial,
-                data = dat_use))
+                data = dat_use, weights = wgts))
     if (month <= 12) m1 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year  + s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
-                                data = dat_use))
+                                data = dat_use, weights = wgts))
     if (month > 12) m1 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year  + s(Length,k=3) + s(julian_recapture_std_scaled, k=3), family=binomial,
-                               data = dat_use))
+                               data = dat_use, weights = wgts))
+    if (month > 12 & data_origin=="cycle2" & model_type=="Iceland") m1 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year  + s(Length,k=3) + s(julian_recapture_std_scaled), family=binomial,
+                               data = dat_use, weights = wgts))
     # m2 <- (gam(y ~  -1 + s(Latitude) + Release_year + s(Length, by=Release_year) + s(julian_recapture_std_scaled, k=3), family=binomial,
     #            data = dat_use))
     # m3 <- (gam(y ~  -1 + s(Latitude, by=Release_year) + Release_year + s(Length) + s(julian_recapture_std_scaled, k=3), family=binomial,
@@ -54,11 +59,11 @@ kfolding <- function(it, kfolds = 10, model_type="Iceland", inputdata=www, ...){
     # m4 <- (gam(y ~  -1 + s(Latitude) + Release_year  + s(Length) + s(julian_recapture_std_scaled, by=Release_year), family=binomial,
     #            data = dat_use))
     m2 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
-               data = dat_use))
+               data = dat_use, weights = wgts))
     m3 <- (gam(y ~  -1 + s(Latitude,k=3) + Release_year + s(Length, k=3) + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
-               data = dat_use))
+               data = dat_use, weights = wgts))
     m4 <- (gam(y ~  -1 + s(Latitude, by=length_bin) + s(Length, k=3) + Release_year + s(julian_recapture_std_scaled, by=length_bin), family=binomial,
-               data = dat_use))
+               data = dat_use, weights = wgts))
     mse0 = mse01 = mse02 = mse03 = mse04 = mse05 = mse06 = mse07 = mse1 = mse2 = mse3 = mse4 = NA
 
     pred0 <- predict(m0, type="response", newdata = testing)
@@ -114,7 +119,7 @@ kfolding <- function(it, kfolds = 10, model_type="Iceland", inputdata=www, ...){
 ##' @export run_directionality
 ##'
 run_directionality <- function(month, data_origin="cycle1", model_selection = "none",
-                               sensitivity=FALSE, scale = "response", alpha= 0.05, adjust_ecoregion = FALSE){
+                               sensitivity=FALSE, scale = "response", alpha= 0.05, weighting = FALSE){
   ## Doing the analysis of P(moving to ICES eco-regions)
   Limit_month <- month ## c(9,10,11)
   if (month == 9)   label <- "Sep30th"
@@ -134,7 +139,7 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
   if (data_origin=="cycle2") data = Data_mackerel_use_Ireland_select_origin_year1
   if (data_origin=="cycle3") data = Data_mackerel_use_Ireland_select_origin_year2
   data$month <- as.numeric(data$Catch_month)
-  Data_mackerel_use_Ireland_select <- subset(data, Release_year %in% 2014:2020) %>% filter(month <= Limit_month)
+  Data_mackerel_use_Ireland_select <- subset(data, Release_year %in% Release_years) %>% filter(month <= Limit_month)
 
   # Now calculating the intersection between recapture location and ICES ecoregions + tweaking because some points fall on land
   Data_mackerel_use_Ireland_select_sf <- Data_mackerel_use_Ireland_select %>% st_as_sf(coords = c("cLon","cLat"), crs=4326) %>%
@@ -161,21 +166,12 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
   Data_mackerel_use_Ireland_select$Latitude_scaled <- scale(Data_mackerel_use_Ireland_select$Latitude)
   Data_mackerel_use_Ireland_select$Latitude2_scaled <- scale((Data_mackerel_use_Ireland_select$Latitude)^2)
 
-  ##Adjustment of the directionality
-  if (adjust_ecoregion == TRUE) {
-    Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select %>%
-    mutate(direction= ifelse((direction == "Celtic Seas" & cLat>62), "Norwegian Sea", direction))
-  }
-
-
-  ## Creating binary response variable
   Data_mackerel_use_Ireland_select <- Data_mackerel_use_Ireland_select %>%
     mutate(toiceland= ifelse(direction == "Icelandic Waters", 1, 0),
            to_norway = ifelse(direction == "Norwegian Sea", 1, 0),
            to_northsea = ifelse(direction == "Greater North Sea", 1, 0),
            to_ireland = ifelse(direction == "Celtic Seas", 1, 0)
     )
-
 
 
   ## Analysis of the movement directionality
@@ -198,49 +194,53 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
   ### 10-fold cross-validation
 
     ### Go to Iceland
-    main_iceland = kfolding(it=1, kfolds=1, model_type="Iceland", inputdata=www)
+    main_iceland = kfolding(it=1, kfolds=1, model_type="Iceland", inputdata=www, month=month, weighting = weighting, data_origin=data_origin)
     if (model_selection == "AIC") best_iceland <- main_iceland[[which.min(main_iceland$AICs$AIC[1:9])]]
     if (model_selection == "none") best_iceland <- main_iceland[[9]]
-    simul <- simulateResiduals(best_iceland, plot=TRUE)
-    par(mfrow=c(2,2))
-    plot(www$Latitude, simul$scaledResiduals)
-    plot(www$Length, simul$scaledResiduals)
-    plot(www$julian_recapture_std, simul$scaledResiduals)
-    plot(www$Release_year, simul$scaledResiduals)
+    best_iceland$prior.weights = rep(1, length(best_iceland$prior.weights))
+    # simul <- simulateResiduals(best_iceland)
+    # par(mfrow=c(2,2))
+    # plot(www$Latitude, simul$scaledResiduals)
+    # plot(www$Length, simul$scaledResiduals)
+    # plot(www$julian_recapture_std, simul$scaledResiduals)
+    # plot(www$Release_year, simul$scaledResiduals)
 
 
     ### Go to norway
-    main_norway = kfolding(it=1, kfolds=1, model_type="Norway", inputdata=www)
+    main_norway = kfolding(it=1, kfolds=1, model_type="Norway", inputdata=www, month=month, weighting = weighting, data_origin=data_origin)
     if (model_selection == "AIC") best_norway <- main_norway[[which.min(main_norway$AICs$AIC[1:9])]]
     if (model_selection == "none") best_norway <- main_norway[[9]]
-    simul <- simulateResiduals(best_norway, plot=TRUE)
-    par(mfrow=c(2,2))
-    plot(www$Latitude, simul$scaledResiduals)
-    plot(www$Length, simul$scaledResiduals)
-    plot(www$julian_recapture_std, simul$scaledResiduals)
-    plot(www$Release_year, simul$scaledResiduals)
+    best_norway$prior.weights = rep(1, length(best_norway$prior.weights))
+    # simul <- simulateResiduals(best_norway, plot=TRUE)
+    # par(mfrow=c(2,2))
+    # plot(www$Latitude, simul$scaledResiduals)
+    # plot(www$Length, simul$scaledResiduals)
+    # plot(www$julian_recapture_std, simul$scaledResiduals)
+    # plot(www$Release_year, simul$scaledResiduals)
 
     ### Go to north sea
-    main_northsea = kfolding(it=1, kfolds=1, model_type="Northsea", inputdata=www)
+    main_northsea = kfolding(it=1, kfolds=1, model_type="Northsea", inputdata=www, month=month, weighting = weighting, data_origin=data_origin)
     if (model_selection == "AIC") best_northsea <- main_northsea[[which.min(main_northsea$AICs$AIC[1:9])]]
     if (model_selection == "none") best_northsea <- main_northsea[[9]]
-    simul <- simulateResiduals(best_northsea, plot=TRUE)
-    par(mfrow=c(2,2))
-    plot(www$Latitude, simul$scaledResiduals)
-    plot(www$Length, simul$scaledResiduals)
-    plot(www$julian_recapture_std, simul$scaledResiduals)
-    plot(www$Release_year, simul$scaledResiduals)
+    best_northsea$prior.weights = rep(1, length(best_northsea$prior.weights))
+    # simul <- simulateResiduals(best_northsea, plot=TRUE)
+    # par(mfrow=c(2,2))
+    # plot(www$Latitude, simul$scaledResiduals)
+    # plot(www$Length, simul$scaledResiduals)
+    # plot(www$julian_recapture_std, simul$scaledResiduals)
+    # plot(www$Release_year, simul$scaledResiduals)
 
     ### Go to Ireland
-    main_ireland = kfolding(it=1, kfolds=1, model_type="Ireland", inputdata=www)
+    main_ireland = kfolding(it=1, kfolds=1, model_type="Ireland", inputdata=www, month=month, weighting = weighting, data_origin=data_origin)
     if (model_selection == "AIC") best_ireland <- main_ireland[[which.min(main_ireland$AICs$AIC[1:9])]]
     if (model_selection == "none") best_ireland <- main_ireland[[9]]
-    simul <- simulateResiduals(best_ireland, plot=TRUE)
-    par(mfrow=c(2,2))
-    plot(www$Latitude, simul$scaledResiduals)
-    plot(www$Length, simul$scaledResiduals)
-    plot(www$julian_recapture_std, simul$scaledResiduals)
-    plot(www$Release_year, simul$scaledResiduals)
+    best_ireland$prior.weights = rep(1, length(best_ireland$prior.weights))
+    # simul <- simulateResiduals(best_ireland, plot=TRUE)
+    # par(mfrow=c(2,2))
+    # plot(www$Latitude, simul$scaledResiduals)
+    # plot(www$Length, simul$scaledResiduals)
+    # plot(www$julian_recapture_std, simul$scaledResiduals)
+    # plot(www$Release_year, simul$scaledResiduals)
 
 
   ### creating figures now
@@ -529,7 +529,7 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
 
   if (length(grep("Release_year", best_iceland$call))>0) {
     pp <- visreg::visreg(best_iceland, "Release_year", plot=FALSE, data=main_iceland$data, alpha = alpha)
-    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
+    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=Release_years))
     pp3_IS <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
       geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
       theme_bw() +scale_x_discrete(drop=FALSE) +
@@ -549,7 +549,7 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
   } else { pp3_IS <- ggplot() + theme_void() }
   if (length(grep("Release_year", best_norway$call))>0) {
     pp <- visreg::visreg(best_norway, "Release_year", plot=FALSE, data=main_norway$data, alpha = alpha)
-    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
+    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=Release_years))
     pp3_NO <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
       geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
       theme_bw() + scale_x_discrete(drop=FALSE) +
@@ -570,7 +570,7 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
   } else { pp3_NO <- ggplot() + theme_void() }
   if (length(grep("Release_year", best_northsea$call))>0) {
     pp <- visreg::visreg(best_northsea, "Release_year", plot=FALSE, data=main_northsea$data, alpha = alpha)
-    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
+    pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=Release_years))
     pp3_NS <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
       geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
       theme_bw() +scale_x_discrete(drop=FALSE) +
@@ -592,7 +592,7 @@ run_directionality <- function(month, data_origin="cycle1", model_selection = "n
   if ( Limit_month > 12 & sensitivity == FALSE){
     if (length(grep("Release_year", best_ireland$call))>0) {
       pp_IR <- visreg::visreg(best_ireland, "Release_year", plot=FALSE, data=main_ireland$data, alpha = alpha)
-      pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=2014:2020))
+      pp$fit <- pp$fit %>% mutate(Release_year_fct = factor(Release_year, levels=Release_years))
       pp3_IR <- ggplot(pp$fit, aes(x=Release_year_fct, y=visregFit)) + geom_point() +
         geom_errorbar(aes(ymin=visregLwr, ymax=visregUpr), col=grey(0.5), width=0.4) +
         theme_bw() +scale_x_discrete(drop=FALSE) +

@@ -50,7 +50,7 @@ Data_mackerel_all$Length <- as.numeric(Data_mackerel_all$Length )
 Data_mackerel_all$dist <- as.numeric(Data_mackerel_all$dist )
 Data_mackerel_all$Release_year <- as.factor(lubridate::year(as.Date(Data_mackerel_all$ReleaseDate)))
 Data_mackerel_all$Release_month <- as.factor(lubridate::month(as.Date(Data_mackerel_all$ReleaseDate)))
-Data_mackerel_all$Release_month <- factor(Data_mackerel_all$Release_month, labels=c("05","06","08","09","10"))
+Data_mackerel_all$Release_month <- factor(Data_mackerel_all$Release_month, labels=c("04", "05","06","08","09","10"))
 Data_mackerel_all$pos <- numFactor(Data_mackerel_all$Longitude, Data_mackerel_all$Latitude)
 Data_mackerel_all$Catch_year <- as.factor(lubridate::year(as.Date(Data_mackerel_all$RecaptureDate)))
 Data_mackerel_all$Catch_month <- as.factor(lubridate::month(as.Date(Data_mackerel_all$RecaptureDate)))
@@ -128,7 +128,7 @@ Data_mackerel_use_Ireland <- subset(Data_mackerel_final, Tag_area %in% c("South_
 Data_mackerel_use_Iceland <- subset(Data_mackerel_final, Tag_area %in% c("Iceland"))
 
 ### Do some explanatory analysis to explore what is causing these patterns of residuals
-mean_tag_area <- Data_mackerel_use_Ireland_select %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
+mean_tag_area <- Data_mackerel_use_Ireland %>% group_by(Tag_area) %>% summarize(median = median(log_rate))
 mean_diff_tag_area <- as.numeric(abs(mean_tag_area[1,2] - mean_tag_area[2,2]))
 
 
@@ -142,11 +142,14 @@ Adding_var <- function(data = Data_mackerel_use_Ireland) {
 
   ## Deriving data-frame for the 3 different migration cycles
   out1 <- data %>%
-    filter(Catch_month %in% cutoff_months, as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year)), Release_year%in%2014:2020)
+    filter(Catch_month %in% cutoff_months, as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year)), Release_year%in%Release_years) %>%
+    filter(Catch_year <= tail(Release_years,1))
   out2 <- data %>%
-    filter(Catch_month %in% cutoff_months, as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+1, Release_year%in%2014:2020)
+    filter(Catch_month %in% cutoff_months, as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+1, Release_year%in%Release_years) %>%
+    filter(Catch_year <= tail(Release_years,1))
   out3 <- data %>%
-    filter(Catch_month %in% cutoff_months,  as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+2, Release_year%in%2014:2020)
+    filter(Catch_month %in% cutoff_months,  as.numeric(as.character(Catch_year)) == as.numeric(as.character(Release_year))+2, Release_year%in%Release_years) %>%
+    filter(Catch_year <= tail(Release_years,1))
   out1$Catch_year <- as.factor(out1$Catch_year)
   out2$Catch_year <- as.factor(out2$Catch_year)
   out3$Catch_year <- as.factor(out3$Catch_year)

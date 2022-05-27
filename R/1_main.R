@@ -18,7 +18,6 @@
 	#devtools::install_github("IMRpelagic/taggart", dependencies = FALSE)
   # devtools::install_github("hafro/geo")
 	# source("R/download_data_functions.R")
-  source("R/Functions.R")
 	library(taggart)
 	library(adehabitatHR)
 	library(tidyverse)
@@ -57,6 +56,7 @@
 
 #### Now load the data for the analysis
   cutoff_months = c(6:14)
+  Release_years = 2014:2021
   source("R/0_prepare_data.R")
 
 #### Some plotting of the data
@@ -70,46 +70,70 @@
   source("R/Functions.R")
 
 #### Then run the analysis
-    Dec_0lag <- run_directionality(month=14, data_origin="cycle1", model_selection = "none", scale = "linear", alpha = 0.05)
+    Dec_0lag <- run_directionality(month=14, data_origin="cycle1", model_selection = "none", scale = "linear", alpha = 0.05, weighting = TRUE)
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_IS.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_0lag[[1]][[9]], dat=Dec_0lag[[1]]$data)
+  	aaa <- Dec_0lag[[1]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_0lag[[1]]$data, nsim=8000)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_NO.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_0lag[[2]][[9]], dat=Dec_0lag[[2]]$data)
+  	aaa <- Dec_0lag[[2]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_0lag[[2]]$data, nsim=8000)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_NS.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_0lag[[3]][[9]], dat=Dec_0lag[[3]]$data)
+  	aaa <- Dec_0lag[[3]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_0lag[[3]]$data, nsim=499)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle1_IR.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_0lag[[4]][[9]], dat=Dec_0lag[[4]]$data)
+  	aaa <- Dec_0lag[[4]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_0lag[[4]]$data)
   	dev.off()
 
-  	Dec_1lag <- run_directionality(month=14, data_origin="cycle2", model_selection = "none", scale = "linear")
+  	Dec_1lag <- run_directionality(month=14, data_origin="cycle2", model_selection = "none", scale = "linear", weighting = TRUE)
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_IS.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_1lag[[1]][[9]], dat=Dec_1lag[[1]]$data, nsim=499)
+  	aaa <- Dec_1lag[[1]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_1lag[[1]]$data %>% filter(!is.na(y)), nsim=499)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_NO.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_1lag[[2]][[9]], dat=Dec_1lag[[2]]$data, nsim=499)
+  	aaa <- Dec_1lag[[2]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_1lag[[2]]$data %>% filter(!is.na(y)), nsim=10000)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_NS.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_1lag[[3]][[9]], dat=Dec_1lag[[3]]$data, nsim=5000)
+  	aaa <- Dec_1lag[[3]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_1lag[[3]]$data %>% filter(!is.na(y)), nsim=499)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle2_IR.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_1lag[[4]][[9]], dat=Dec_1lag[[4]]$data, nsim=5000)
+  	aaa <- Dec_1lag[[4]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_1lag[[4]]$data %>% filter(!is.na(y)), nsim=5000)
   	dev.off()
 
-  	Dec_2lag <- run_directionality(month=14, data_origin="cycle3", model_selection = "none",scale = "linear")
+  	Dec_2lag <- run_directionality(month=14, data_origin="cycle3", model_selection = "none",scale = "linear", weighting = TRUE)
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_IS.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_2lag[[1]][[9]], dat=Dec_2lag[[1]]$data)
+  	aaa <- Dec_2lag[[3]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_2lag[[1]]$data %>% filter(!is.na(y)), nsim=2000)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_NO.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_2lag[[2]][[9]], dat=Dec_2lag[[2]]$data)
+  	aaa <- Dec_2lag[[2]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_2lag[[2]]$data %>% filter(!is.na(y)), nsim=499)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_NS.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_2lag[[3]][[9]], dat=Dec_2lag[[3]]$data)
+  	aaa <- Dec_2lag[[3]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_2lag[[3]]$data %>% filter(!is.na(y)), nsim=500)
   	dev.off()
   	png(filename=paste0(getwd(), "/MS/figs/Resid_cycle3_IR.png"), res=400, width=16, height=12, units="cm")
-  	Resid_plot(mod=Dec_2lag[[4]][[9]], dat=Dec_2lag[[4]]$data)
+  	aaa <- Dec_2lag[[4]][[9]]
+  	aaa$prior.weights = rep(1, length(aaa$prior.weights))
+  	Resid_plot(mod=aaa, dat=Dec_2lag[[4]]$data %>% filter(!is.na(y)), nsim=499)
   	dev.off()
 
   # main models based on model selection
